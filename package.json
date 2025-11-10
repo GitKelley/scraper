@@ -1,0 +1,33 @@
+{
+  "name": "rental-scraper-app",
+  "version": "1.0.0",
+  "description": "Web app to scrape rental listings from VRBO/Booking.com/Airbnb and send to Notion via Zapier",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "install-browsers": "playwright install chromium"
+  },
+  "keywords": [
+    "rental",
+    "scraper",
+    "playwright",
+    "zapier",
+    "notion"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "playwright": "^1.48.0",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "formidable": "^3.5.1",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+
