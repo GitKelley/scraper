@@ -27,14 +27,12 @@ export async function scrapeRental(url) {
     // Allow headed mode for local debugging or Linux servers (set HEADED=true environment variable)
     // On Linux, headed mode requires Xvfb (virtual display server) - handled by Docker
     const headed = process.env.HEADED === 'true' || process.env.HEADED === '1';
-    console.log('HEADED environment variable:', process.env.HEADED);
-    console.log('Running in headed mode:', headed);
+    // Running in headed mode if HEADED env var is set
     
     if (isRender) {
       // In Docker, Playwright installs browsers to ~/.cache/ms-playwright by default
       // Let Playwright use its default path - don't override it
       const defaultPath = path.join(process.env.HOME || '/root', '.cache/ms-playwright');
-      console.log('Default Playwright browsers path:', defaultPath);
       
       // Try to find the browser executable in common locations (Docker/Linux)
       // For headed mode, we need chromium (not headless_shell)
@@ -48,12 +46,10 @@ export async function scrapeRental(url) {
         path.join(defaultPath, 'chromium_headless_shell-1194/headless_shell-linux/headless_shell')
       ];
       
-      console.log('Searching for browser executable...');
       for (const possiblePath of possiblePaths) {
         try {
           await fs.access(possiblePath);
           executablePath = possiblePath;
-          console.log('Found browser executable at:', executablePath);
           break;
         } catch (e) {
           // Try next path
@@ -70,19 +66,16 @@ export async function scrapeRental(url) {
             try {
               await fs.access(chromePath);
               executablePath = chromePath;
-              console.log('Found browser executable at:', executablePath);
               break;
             } catch (e) {
               // Try next
             }
           }
         } catch (e) {
-          console.log('Could not read browsers directory:', e.message);
         }
       }
       
       if (!executablePath) {
-        console.log('Browser executable not found in expected paths, letting Playwright find it automatically');
       }
     }
     
@@ -106,7 +99,6 @@ export async function scrapeRental(url) {
     }
     
     if (headed) {
-      console.log('Running in HEADED mode - browser window will be visible');
     }
     
     // Use executablePath if we found it (bypasses Playwright's path resolution)
@@ -146,7 +138,7 @@ export async function scrapeRental(url) {
     
     // Listen for console messages and errors (set up before navigation)
     // Only log errors, not all console messages (too noisy)
-    page.on('pageerror', error => console.log('Page error:', error.message));
+    page.on('pageerror', error => console.error('Page error:', error.message));
     
     // Remove webdriver property to avoid detection
     // MUST be called before page.goto() - init scripts run before page loads
@@ -185,16 +177,12 @@ export async function scrapeRental(url) {
       // Continue anyway - stealth measures may not be as effective but scraping can still work
     }
     
-    console.log(`Navigating to: ${url}`);
     const timeout = process.env.NODE_ENV === 'production' ? 30000 : 10000;
     
     // Navigate to the page - use domcontentloaded for faster navigation (doesn't wait for all resources)
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
-    console.log('Page navigation complete');
-
     // Wait for dynamic content to render (3 seconds)
     await page.waitForTimeout(3000);
-    console.log('Starting to scrape...');
 
     // Determine which site we're scraping (for source identification)
     const hostname = new URL(url).hostname.toLowerCase();
@@ -208,22 +196,14 @@ export async function scrapeRental(url) {
 
     // Try site-specific scrapers first for better accuracy
     if (hostname.includes('vrbo')) {
-      console.log('Using VRBO scraper...');
       rentalData = { ...rentalData, ...await scrapeVRBO(page) };
-      console.log('VRBO scraping complete');
     } else if (hostname.includes('booking')) {
-      console.log('Using Booking.com scraper...');
       rentalData = { ...rentalData, ...await scrapeBooking(page) };
-      console.log('Booking.com scraping complete');
     } else if (hostname.includes('airbnb')) {
-      console.log('Using Airbnb scraper...');
       rentalData = { ...rentalData, ...await scrapeAirbnb(page) };
-      console.log('Airbnb scraping complete');
     } else {
       // Generic scraper for any rental website
-      console.log('Using generic scraper...');
       rentalData = { ...rentalData, ...await scrapeGeneric(page) };
-      console.log('Generic scraping complete');
     }
 
     // Ensure images are included
@@ -267,7 +247,6 @@ async function scrapeVRBO(page) {
 
   try {
     // Title - extract from h1 element
-    console.log('Scraping VRBO title...');
     try {
       data.title = await page.locator('h1').first().textContent({ timeout: 1000 }).catch(() => null);
       if (data.title) {
@@ -276,10 +255,8 @@ async function scrapeVRBO(page) {
     } catch (e) {
       data.title = null;
     }
-    console.log('Title found:', data.title);
 
     // Description - extract from content-markup divs
-    console.log('Scraping description...');
     try {
       // Get all description content from content-markup divs
       const descriptionElements = await page.locator('[data-stid="content-markup"]').all({ timeout: 1000 }).catch(() => []);
@@ -297,20 +274,16 @@ async function scrapeVRBO(page) {
     } catch (e) {
       data.description = null;
     }
-    console.log('Description found:', data.description ? `${data.description.substring(0, 50)}...` : null);
 
     // Price - extract from price-summary element
-    console.log('Scraping price...');
     try {
       const priceText = await page.locator('[data-test-id="price-summary"] [data-test-id="price-summary-message-line"] .uitk-text-emphasis-theme').first().textContent({ timeout: 1000 }).catch(() => null);
       data.pricePerNight = extractPrice(priceText);
-      console.log('Price found:', data.pricePerNight, '(from text:', priceText, ')');
     } catch (e) {
       data.pricePerNight = null;
     }
 
     // Bedrooms - extract from title text or page content
-    console.log('Scraping bedrooms...');
     try {
       // Try to extract from title first (e.g., "7 Bedroom House")
       const titleText = data.title || '';
@@ -323,13 +296,11 @@ async function scrapeVRBO(page) {
                               await page.locator('text=/\\d+\\s*bed/i').first().textContent({ timeout: 1000 }).catch(() => null);
         data.bedrooms = extractNumber(bedroomsText);
       }
-      console.log('Bedrooms found:', data.bedrooms);
     } catch (e) {
       data.bedrooms = null;
     }
 
     // Bathrooms - extract from title text or page content
-    console.log('Scraping bathrooms...');
     try {
       // Try to extract from title first (e.g., "7 Bedroom House 8 Bath")
       const titleText = data.title || '';
@@ -342,13 +313,11 @@ async function scrapeVRBO(page) {
                                await page.locator('text=/\\d+\\s*bath/i').first().textContent({ timeout: 1000 }).catch(() => null);
         data.bathrooms = extractNumber(bathroomsText);
       }
-      console.log('Bathrooms found:', data.bathrooms);
     } catch (e) {
       data.bathrooms = null;
     }
 
     // Sleeps - extract from bedrooms heading span (e.g., "7 bedrooms (sleeps 14)")
-    console.log('Scraping sleeps...');
     try {
       // Look for the span inside the h3 heading that contains bedrooms and sleeps
       // Structure: <h3>7 bedrooms <span>(sleeps 14)</span></h3>
@@ -356,25 +325,21 @@ async function scrapeVRBO(page) {
                          await page.locator('h3:has-text("bedroom") span:has-text("sleeps")').first().textContent({ timeout: 1000 }).catch(() => null) ||
                          await page.locator('text=/\\(sleeps\\s+\\d+\\)/i').first().textContent({ timeout: 1000 }).catch(() => null);
       data.sleeps = extractNumber(sleepsText);
-      console.log('Sleeps found:', data.sleeps, '(from text:', sleepsText, ')');
     } catch (e) {
       data.sleeps = null;
     }
 
     // Location - extract from content-hotel-address
-    console.log('Scraping location...');
     try {
       data.location = await page.locator('[data-stid="content-hotel-address"]').first().textContent({ timeout: 1000 }).catch(() => null);
       if (data.location) {
         data.location = data.location.trim();
       }
-      console.log('Location found:', data.location);
     } catch (e) {
       data.location = null;
     }
 
     // Images - extract from media.vrbo.com images
-    console.log('Scraping VRBO images...');
     try {
       const imageElements = await page.locator('img[src*="media.vrbo.com"]').all({ timeout: 1000 }).catch(() => []);
       data.images = [];
@@ -401,25 +366,19 @@ async function scrapeVRBO(page) {
           // Skip this image
         }
       }
-      console.log(`Collected ${data.images.length} images`);
     } catch (e) {
-      console.log('Error scraping images:', e.message);
       data.images = [];
     }
 
     // Rating - extract from badge element
-    console.log('Scraping VRBO rating...');
     try {
-      // Try to find rating in badge element (uitk-badge-base-text)
       const ratingText = await page.locator('.uitk-badge-base-text').first().textContent({ timeout: 1000 }).catch(() => null);
       data.rating = extractRating(ratingText);
-      console.log('Rating found:', data.rating, '(from text:', ratingText, ')');
     } catch (e) {
       data.rating = null;
     }
 
 
-    console.log('VRBO scraping data:', JSON.stringify(data, null, 2));
 
   } catch (error) {
     console.error('Error scraping VRBO:', error);

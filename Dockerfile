@@ -22,6 +22,9 @@ RUN npx playwright install chromium
 RUN npx playwright install-deps chromium
 
 # Copy application files
+# Use .dockerignore to exclude unnecessary files, but ensure code is always fresh
+# Add build arg to bust cache if needed
+ARG CACHE_BUST=1
 COPY . .
 
 # Expose port (Render will set PORT environment variable)
