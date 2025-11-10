@@ -3,42 +3,12 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Install browsers if they don't exist (for Render)
-let browsersInstalled = false;
-
-async function ensureBrowsersInstalled() {
-  if (browsersInstalled) return;
-  
-  try {
-    // Set Playwright browsers path - use the actual project path
-    const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/render/project/.cache/ms-playwright';
-    process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
-    
-    // Ensure the directory exists
-    try {
-      await fs.mkdir(browsersPath, { recursive: true });
-    } catch (e) {
-      // Directory might already exist
-    }
-    
-    // Try to install browsers
-    console.log('Installing Playwright browsers to:', browsersPath);
-    execSync('npx playwright install chromium', { 
-      stdio: 'inherit',
-      env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: browsersPath }
-    });
-    browsersInstalled = true;
-    console.log('Playwright browsers installed successfully');
-  } catch (error) {
-    console.error('Failed to install browsers:', error.message);
-    // Continue anyway - might work if browsers are already installed
-  }
-}
+// Browsers are installed during build via postinstall script
+// We just need to find the correct path to the executable
 
 /**
  * Scrapes rental data from any rental website
@@ -48,23 +18,16 @@ export async function scrapeRental(url) {
   let browser = null;
   
   try {
-    // Ensure browsers are installed before launching
-    await ensureBrowsersInstalled();
-    
-    // Set Playwright browsers path - must match where browsers were installed
+    // Set Playwright browsers path - browsers are installed during build
     const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/render/project/.cache/ms-playwright';
     process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
-    
-    // Also set it in the environment for Playwright to find
     process.env.PW_BROWSERS_PATH = browsersPath;
     
-    console.log('Using Playwright browsers from:', browsersPath);
-    
-    // Try to find the browser executable
+    // Try to find the browser executable in common locations
     const possiblePaths = [
       `${browsersPath}/chromium_headless_shell-1194/chrome-linux/headless_shell`,
-      `${browsersPath}/chromium-1194/chrome-linux/chrome`,
-      `${browsersPath}/chromium_headless_shell-1194/headless_shell-linux/headless_shell`
+      `${browsersPath}/chromium_headless_shell-1194/headless_shell-linux/headless_shell`,
+      `${browsersPath}/chromium-1194/chrome-linux/chrome`
     ];
     
     let executablePath = null;
@@ -72,7 +35,7 @@ export async function scrapeRental(url) {
       try {
         await fs.access(possiblePath);
         executablePath = possiblePath;
-        console.log('Found browser at:', executablePath);
+        console.log('Found browser executable at:', executablePath);
         break;
       } catch (e) {
         // Try next path
@@ -90,7 +53,7 @@ export async function scrapeRental(url) {
       ]
     };
     
-    // Use executablePath if we found it
+    // Use executablePath if we found it (bypasses Playwright's path resolution)
     if (executablePath) {
       launchOptions.executablePath = executablePath;
     }
@@ -105,10 +68,11 @@ export async function scrapeRental(url) {
     const page = await context.newPage();
     
     console.log(`Navigating to: ${url}`);
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    // Use longer timeout and less strict wait condition
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     // Wait for dynamic content to load
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(5000);
 
     // Determine which site we're scraping (for source identification)
     const hostname = new URL(url).hostname.toLowerCase();
