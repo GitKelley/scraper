@@ -3,9 +3,35 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Install browsers if they don't exist (for Render)
+let browsersInstalled = false;
+
+async function ensureBrowsersInstalled() {
+  if (browsersInstalled) return;
+  
+  try {
+    // Set Playwright browsers path
+    const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/render/project/.cache/ms-playwright';
+    process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
+    
+    // Try to install browsers
+    console.log('Installing Playwright browsers...');
+    execSync('npx playwright install chromium', { 
+      stdio: 'inherit',
+      env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: browsersPath }
+    });
+    browsersInstalled = true;
+    console.log('Playwright browsers installed successfully');
+  } catch (error) {
+    console.error('Failed to install browsers:', error.message);
+    // Continue anyway - might work if browsers are already installed
+  }
+}
 
 /**
  * Scrapes rental data from any rental website
@@ -15,6 +41,9 @@ export async function scrapeRental(url) {
   let browser = null;
   
   try {
+    // Ensure browsers are installed before launching
+    await ensureBrowsersInstalled();
+    
     // Set Playwright browsers path if not set
     if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
       process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/render/project/.cache/ms-playwright';
