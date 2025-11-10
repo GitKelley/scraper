@@ -179,10 +179,26 @@ export async function scrapeRental(url) {
     
     const timeout = process.env.NODE_ENV === 'production' ? 30000 : 10000;
     
-    // Navigate to the page - use domcontentloaded for faster navigation (doesn't wait for all resources)
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
-    // Wait for dynamic content to render (3 seconds)
-    await page.waitForTimeout(3000);
+    // Navigate to the page - use load to ensure page is fully loaded
+    await page.goto(url, { waitUntil: 'load', timeout });
+    
+    // Wait for network to be idle (ensures dynamic content is loaded)
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    } catch (e) {
+      // Continue even if networkidle times out
+    }
+    
+    // Wait for key elements to be present before scraping
+    try {
+      // Wait for h1 title to appear (indicates page content is loaded)
+      await page.waitForSelector('h1', { timeout: 10000 }).catch(() => {});
+    } catch (e) {
+      // Continue even if h1 doesn't appear
+    }
+    
+    // Wait for dynamic content to render (5 seconds for Render)
+    await page.waitForTimeout(5000);
 
     // Determine which site we're scraping (for source identification)
     const hostname = new URL(url).hostname.toLowerCase();
@@ -248,7 +264,7 @@ async function scrapeVRBO(page) {
   try {
     // Title - extract from h1 element
     try {
-      data.title = await page.locator('h1').first().textContent({ timeout: 1000 }).catch(() => null);
+      data.title = await page.locator('h1').first().textContent({ timeout: 5000 }).catch(() => null);
       if (data.title) {
         data.title = data.title.trim();
       }
@@ -259,7 +275,7 @@ async function scrapeVRBO(page) {
     // Description - extract from content-markup divs
     try {
       // Get all description content from content-markup divs
-      const descriptionElements = await page.locator('[data-stid="content-markup"]').all({ timeout: 1000 }).catch(() => []);
+      const descriptionElements = await page.locator('[data-stid="content-markup"]').all({ timeout: 5000 }).catch(() => []);
       const descriptionParts = [];
       for (const elem of descriptionElements) {
         const text = await elem.textContent({ timeout: 500 }).catch(() => null);
@@ -277,7 +293,7 @@ async function scrapeVRBO(page) {
 
     // Price - extract from price-summary element
     try {
-      const priceText = await page.locator('[data-test-id="price-summary"] [data-test-id="price-summary-message-line"] .uitk-text-emphasis-theme').first().textContent({ timeout: 1000 }).catch(() => null);
+      const priceText = await page.locator('[data-test-id="price-summary"] [data-test-id="price-summary-message-line"] .uitk-text-emphasis-theme').first().textContent({ timeout: 5000 }).catch(() => null);
       data.pricePerNight = extractPrice(priceText);
     } catch (e) {
       data.pricePerNight = null;
@@ -292,8 +308,8 @@ async function scrapeVRBO(page) {
         data.bedrooms = parseInt(bedroomsMatch[1], 10);
       } else {
         // Fallback: search page for bedroom text
-        const bedroomsText = await page.locator('text=/\\d+\\s*bedroom/i').first().textContent({ timeout: 1000 }).catch(() => null) ||
-                              await page.locator('text=/\\d+\\s*bed/i').first().textContent({ timeout: 1000 }).catch(() => null);
+        const bedroomsText = await page.locator('text=/\\d+\\s*bedroom/i').first().textContent({ timeout: 5000 }).catch(() => null) ||
+                              await page.locator('text=/\\d+\\s*bed/i').first().textContent({ timeout: 5000 }).catch(() => null);
         data.bedrooms = extractNumber(bedroomsText);
       }
     } catch (e) {
@@ -309,8 +325,8 @@ async function scrapeVRBO(page) {
         data.bathrooms = parseInt(bathroomsMatch[1], 10);
       } else {
         // Fallback: search page for bathroom text
-        const bathroomsText = await page.locator('text=/\\d+\\s*bathroom/i').first().textContent({ timeout: 1000 }).catch(() => null) ||
-                               await page.locator('text=/\\d+\\s*bath/i').first().textContent({ timeout: 1000 }).catch(() => null);
+        const bathroomsText = await page.locator('text=/\\d+\\s*bathroom/i').first().textContent({ timeout: 5000 }).catch(() => null) ||
+                               await page.locator('text=/\\d+\\s*bath/i').first().textContent({ timeout: 5000 }).catch(() => null);
         data.bathrooms = extractNumber(bathroomsText);
       }
     } catch (e) {
@@ -321,9 +337,9 @@ async function scrapeVRBO(page) {
     try {
       // Look for the span inside the h3 heading that contains bedrooms and sleeps
       // Structure: <h3>7 bedrooms <span>(sleeps 14)</span></h3>
-      const sleepsText = await page.locator('h3.uitk-heading-5:has-text("bedroom") span.uitk-text').first().textContent({ timeout: 1000 }).catch(() => null) ||
-                         await page.locator('h3:has-text("bedroom") span:has-text("sleeps")').first().textContent({ timeout: 1000 }).catch(() => null) ||
-                         await page.locator('text=/\\(sleeps\\s+\\d+\\)/i').first().textContent({ timeout: 1000 }).catch(() => null);
+      const sleepsText = await page.locator('h3.uitk-heading-5:has-text("bedroom") span.uitk-text').first().textContent({ timeout: 5000 }).catch(() => null) ||
+                         await page.locator('h3:has-text("bedroom") span:has-text("sleeps")').first().textContent({ timeout: 5000 }).catch(() => null) ||
+                         await page.locator('text=/\\(sleeps\\s+\\d+\\)/i').first().textContent({ timeout: 5000 }).catch(() => null);
       data.sleeps = extractNumber(sleepsText);
     } catch (e) {
       data.sleeps = null;
@@ -331,7 +347,7 @@ async function scrapeVRBO(page) {
 
     // Location - extract from content-hotel-address
     try {
-      data.location = await page.locator('[data-stid="content-hotel-address"]').first().textContent({ timeout: 1000 }).catch(() => null);
+      data.location = await page.locator('[data-stid="content-hotel-address"]').first().textContent({ timeout: 5000 }).catch(() => null);
       if (data.location) {
         data.location = data.location.trim();
       }
@@ -341,7 +357,7 @@ async function scrapeVRBO(page) {
 
     // Images - extract from media.vrbo.com images
     try {
-      const imageElements = await page.locator('img[src*="media.vrbo.com"]').all({ timeout: 1000 }).catch(() => []);
+      const imageElements = await page.locator('img[src*="media.vrbo.com"]').all({ timeout: 5000 }).catch(() => []);
       data.images = [];
       const seenUrls = new Set();
       for (let i = 0; i < Math.min(imageElements.length, 15); i++) { // Limit to 15 images
@@ -372,7 +388,7 @@ async function scrapeVRBO(page) {
 
     // Rating - extract from badge element
     try {
-      const ratingText = await page.locator('.uitk-badge-base-text').first().textContent({ timeout: 1000 }).catch(() => null);
+      const ratingText = await page.locator('.uitk-badge-base-text').first().textContent({ timeout: 5000 }).catch(() => null);
       data.rating = extractRating(ratingText);
     } catch (e) {
       data.rating = null;
