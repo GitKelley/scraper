@@ -15,12 +15,19 @@ async function ensureBrowsersInstalled() {
   if (browsersInstalled) return;
   
   try {
-    // Set Playwright browsers path
+    // Set Playwright browsers path - use the actual project path
     const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/render/project/.cache/ms-playwright';
     process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
     
+    // Ensure the directory exists
+    try {
+      await fs.mkdir(browsersPath, { recursive: true });
+    } catch (e) {
+      // Directory might already exist
+    }
+    
     // Try to install browsers
-    console.log('Installing Playwright browsers...');
+    console.log('Installing Playwright browsers to:', browsersPath);
     execSync('npx playwright install chromium', { 
       stdio: 'inherit',
       env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: browsersPath }
@@ -44,10 +51,14 @@ export async function scrapeRental(url) {
     // Ensure browsers are installed before launching
     await ensureBrowsersInstalled();
     
-    // Set Playwright browsers path if not set
-    if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
-      process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/render/project/.cache/ms-playwright';
-    }
+    // Set Playwright browsers path - must match where browsers were installed
+    const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/render/project/.cache/ms-playwright';
+    process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
+    
+    // Also set it in the environment for Playwright to find
+    process.env.PW_BROWSERS_PATH = browsersPath;
+    
+    console.log('Using Playwright browsers from:', browsersPath);
     
     browser = await chromium.launch({
       headless: true,
