@@ -138,7 +138,10 @@ export async function scrapeRental(url) {
     
     // Listen for console messages and errors (set up before navigation)
     // Only log errors, not all console messages (too noisy)
-    page.on('pageerror', error => console.error('Page error:', error.message));
+    page.on('pageerror', error => {
+      // Log full error details for debugging
+      console.error('Page error:', error.message, error.stack || 'No stack trace');
+    });
     
     // Remove webdriver property to avoid detection
     // MUST be called before page.goto() - init scripts run before page loads
