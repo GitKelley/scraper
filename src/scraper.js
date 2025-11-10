@@ -180,13 +180,29 @@ export async function scrapeRental(url) {
       // Continue anyway - stealth measures may not be as effective but scraping can still work
     }
     
-    const timeout = process.env.NODE_ENV === 'production' ? 30000 : 10000;
+    const timeout = process.env.NODE_ENV === 'production' ? 60000 : 10000;
     
-    // Navigate to the page - use domcontentloaded for faster navigation
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+    // Navigate to the page - use 'load' in production for more reliable loading
+    // 'load' waits for all resources (images, stylesheets, etc.) to finish loading
+    const waitUntil = process.env.NODE_ENV === 'production' ? 'load' : 'domcontentloaded';
+    await page.goto(url, { waitUntil, timeout });
     
     // Wait for dynamic content to render (10 seconds)
     await page.waitForTimeout(10000);
+    
+    // In production, also wait for a key element to ensure page is ready
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        // Wait for either h1 (title) or body to be ready
+        await Promise.race([
+          page.waitForSelector('h1', { timeout: 10000 }).catch(() => null),
+          page.waitForSelector('body', { timeout: 10000 }).catch(() => null),
+        ]);
+      } catch (e) {
+        // Continue anyway - page might still be usable
+        console.log('Warning: Could not wait for key elements, continuing anyway');
+      }
+    }
 
     // Determine which site we're scraping (for source identification)
     const hostname = new URL(url).hostname.toLowerCase();
