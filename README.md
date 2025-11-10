@@ -1,55 +1,49 @@
 # Rental Scraper API
 
-A backend API that scrapes rental listings from **any rental website** (VRBO, Booking.com, Airbnb, Expedia, TripAdvisor, etc.), then sends the data to Notion via Zapier. Designed to be called by Zapier when users submit rental links through Google Forms.
+A backend API that scrapes rental listings from **any rental website** (VRBO, Booking.com, Airbnb, etc.) and returns the data for Zapier to create Notion pages. Designed to be called by Zapier when users submit rental links through Google Forms.
 
 ## Features
 
-- 🏠 Scrapes rental data from **any rental website** (not just VRBO/Booking.com/Airbnb)
+- 🏠 Scrapes rental data from **any rental website**
 - 📸 Captures images from rental listings
-- 📋 Extracts key information (price, bedrooms, bathrooms, guests, location, rating)
-- 🔗 Sends data to Notion via Zapier webhook
+- 📋 Extracts key information (title, price, bedrooms, bathrooms, guests, location, rating)
+- 🔗 Returns data for Zapier to create Notion pages
 - 🤖 API endpoint ready for Zapier integration
 
 ## Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
-- A Zapier account with a webhook URL (for Notion integration)
+- A Zapier account (for Notion integration)
 - A Google Form to collect rental links
 
 ## Setup
 
-1. **Clone or navigate to the project directory**
-   ```bash
-   cd scraper
-   ```
-
-2. **Install dependencies**
+1. **Install dependencies**
    ```bash
    npm install
    ```
 
-3. **Install Playwright browsers**
+2. **Install Playwright browsers**
    ```bash
    npm run install-browsers
    ```
 
-4. **Set up environment variables**
+3. **Set up environment variables** (optional for local testing)
    ```bash
    cp .env.example .env
-   ```
-   
-   Edit `.env` and add your Zapier webhook URL:
-   ```
-   PORT=3000
-   ZAPIER_WEBHOOK_URL=https://hooks.zapier.com/hooks/catch/your-webhook-id
-   NODE_ENV=production
    ```
 
 ## Running Locally
 
+**Headless mode (default):**
 ```bash
 npm start
+```
+
+**Headed mode (for debugging):**
+```bash
+npm run start:headed
 ```
 
 The API will be available at `http://localhost:3000/api/scrape-rental`
@@ -58,7 +52,7 @@ The API will be available at `http://localhost:3000/api/scrape-rental`
 
 **POST** `/api/scrape-rental`
 
-Accepts a JSON body with a URL field (Zapier will call this from Google Forms):
+Accepts a JSON body with a URL field:
 
 ```json
 {
@@ -66,41 +60,55 @@ Accepts a JSON body with a URL field (Zapier will call this from Google Forms):
 }
 ```
 
-Or any of these field names:
-- `url`
-- `rentalUrl`
-- `link`
-- `Rental URL`
-- `Rental Link`
+Or any of these field names: `url`, `rentalUrl`, `link`, `Rental URL`, `Rental Link`
 
-Returns scraped rental data and sends it to Notion via Zapier.
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Rental scraped successfully!",
+  "title": "7 Bedroom House in Downtown Banner Elk!",
+  "url": "https://www.vrbo.com/3334535",
+  "source": "VRBO",
+  "description": "...",
+  "pricePerNight": 1101,
+  "bedrooms": 7,
+  "bathrooms": 8,
+  "guests": 14,
+  "location": "Banner Elk, NC",
+  "rating": 4.5,
+  "images": ["https://..."],
+  "scrapedAt": "2025-11-10T04:52:37.503Z",
+  "tripType": "New Years Trip"
+}
+```
 
 ## Deployment
 
-### Railway
+### Render (Recommended)
 
-1. **Connect your GitHub repository to Railway**
-   - Go to [Railway](https://railway.app)
-   - Click "New Project" → "Deploy from GitHub repo"
+1. **Connect your GitHub repository to Render**
+   - Go to [render.com](https://render.com)
+   - Click "New +" → "Web Service"
+   - Connect your GitHub account
    - Select your repository
 
-2. **Set environment variables in Railway**
-   - Go to your project settings
-   - Add the following variables:
-     - `PORT` (Railway will set this automatically, but you can override)
-     - `ZAPIER_WEBHOOK_URL` (your Zapier webhook URL)
-     - `NODE_ENV=production`
+2. **Configure service**
+   - **Environment**: Docker
+   - **Dockerfile Path**: `./Dockerfile`
+   - **Plan**: Free (or paid for always-on)
 
-3. **Configure build and start commands**
-   Railway should auto-detect Node.js, but you can set:
-   - Build Command: `npm install && npm run install-browsers`
-   - Start Command: `npm start`
+3. **Set environment variables**
+   - `NODE_ENV=production`
+   - `HEADED=true` (for headed browser mode)
+   - `DISPLAY=:99` (for virtual display)
+   - `PORT=3000` (Render sets this automatically)
 
 4. **Deploy**
-   - Railway will automatically deploy when you push to your main branch
-   - Or click "Deploy" in the Railway dashboard
+   - Render will automatically build and deploy
+   - Your service will be available at `https://your-app-name.onrender.com`
 
-## Zapier Integration Setup
+## Zapier Integration
 
 ### Step 1: Create Google Form
 1. Create a Google Form with a field for "Rental URL" or "Link"
@@ -115,7 +123,7 @@ Returns scraped rental data and sends it to Notion via Zapier.
 
 2. **Action: Webhooks by Zapier**
    - Choose "POST" action
-   - URL: `https://your-railway-app.railway.app/api/scrape-rental`
+   - URL: `https://your-app-name.onrender.com/api/scrape-rental`
    - Method: POST
    - Data: Map the URL field from Google Forms
      ```json
@@ -136,18 +144,7 @@ Returns scraped rental data and sends it to Notion via Zapier.
      - `guests` → Number property
      - `location` → Text property
      - `rating` → Number property
-     - `images` → Files/Media property (may need special handling)
-
-4. **Set up the second Zapier webhook** (for Notion)
-   - Create another Zap with "Webhooks by Zapier → Catch Hook"
-   - Copy this webhook URL
-   - Add it to your `.env` file as `ZAPIER_WEBHOOK_URL`
-   - This is where the scraper sends the final data
-
-### Step 3: Test Your Integration
-1. Submit a test rental link through Google Forms
-2. Check that the scraper processes it
-3. Verify a Notion page is created
+     - `images` → Files/Media property
 
 ## Project Structure
 
@@ -155,29 +152,13 @@ Returns scraped rental data and sends it to Notion via Zapier.
 scraper/
 ├── server.js              # Express API server
 ├── src/
-│   ├── scraper.js         # Playwright scraping logic (works with any rental site)
-│   └── zapier.js          # Zapier webhook integration
+│   ├── scraper.js         # Playwright scraping logic
+│   └── zapier.js          # Zapier webhook integration (optional)
+├── Dockerfile             # Docker configuration for Render
+├── render.yaml            # Render deployment config
 ├── package.json
-├── .env.example
 └── README.md
 ```
-
-## How It Works
-
-1. User submits a rental URL through **Google Form**
-2. Zapier triggers when form is submitted
-3. Zapier calls this API with the rental URL
-4. API uses Playwright to scrape the rental page (works with any rental website)
-5. Scraper extracts:
-   - Title
-   - Description
-   - Price per night
-   - Bedrooms, bathrooms, guests
-   - Location
-   - Rating
-   - Images
-6. Data is sent to Zapier webhook (for Notion)
-7. Zapier creates a Notion page with the rental information
 
 ## Supported Rental Websites
 
@@ -187,7 +168,6 @@ The scraper works with **any rental website**, including:
 - Airbnb
 - Expedia
 - TripAdvisor
-- HomeAway
 - And many others!
 
 The scraper uses generic selectors and fallbacks to extract data from any rental listing page.
@@ -197,22 +177,16 @@ The scraper uses generic selectors and fallbacks to extract data from any rental
 ### Scraping fails
 - Some sites may have anti-bot protection
 - Check server logs for specific errors
-- The generic scraper should work with most sites, but some may need custom handling
+- The scraper runs in headed mode on Render to bypass bot detection
 
 ### Images not showing
 - Images are sent as URLs to Zapier
 - You may need to configure Zapier to download images separately
-- Some sites may block direct image access
 
 ### Zapier webhook not working
-- Verify your webhook URL is correct in `.env`
+- Verify your API endpoint URL is correct
 - Check Zapier logs for errors
 - Ensure your Zap is turned on
-- Verify the API endpoint URL in your Zapier webhook action
-
-### Google Form integration
-- Make sure the URL field name in Zapier matches your Google Form field
-- The API accepts multiple field names: `url`, `rentalUrl`, `link`, `Rental URL`, `Rental Link`
 
 ## License
 
