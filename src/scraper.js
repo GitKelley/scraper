@@ -192,8 +192,8 @@ export async function scrapeRental(url) {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
     console.log('Page navigation complete');
 
-    // Short wait for dynamic content to render (1 second)
-    await page.waitForTimeout(1000);
+    // Wait for dynamic content to render (3 seconds)
+    await page.waitForTimeout(3000);
     console.log('Starting to scrape...');
 
     // Determine which site we're scraping (for source identification)
@@ -417,6 +417,7 @@ async function scrapeVRBO(page) {
     } catch (e) {
       data.rating = null;
     }
+
 
     console.log('VRBO scraping data:', JSON.stringify(data, null, 2));
 
