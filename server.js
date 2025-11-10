@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { scrapeRental } from './src/scraper.js';
-import { sendToZapier } from './src/zapier.js';
 
 dotenv.config();
 
@@ -47,14 +46,24 @@ app.post('/api/scrape-rental', async (req, res) => {
 
     console.log('Scraped data:', JSON.stringify(rentalData, null, 2));
 
-    // Send to Zapier webhook (for Notion)
-    const zapierResponse = await sendToZapier(rentalData);
-
+    // Return scraped data - Zapier will use this response to create Notion page
     res.json({
       success: true,
-      message: 'Rental scraped and sent to Notion successfully!',
-      data: rentalData,
-      zapierResponse
+      message: 'Rental scraped successfully!',
+      // All rental data fields are at the root level for Zapier to use
+      title: rentalData.title,
+      url: rentalData.url,
+      source: rentalData.source,
+      description: rentalData.description,
+      pricePerNight: rentalData.pricePerNight,
+      bedrooms: rentalData.bedrooms,
+      bathrooms: rentalData.bathrooms,
+      guests: rentalData.guests,
+      location: rentalData.location,
+      rating: rentalData.rating,
+      images: rentalData.images || rentalData.imageUrls || [],
+      scrapedAt: rentalData.scrapedAt,
+      tripType: 'New Years Trip'
     });
 
   } catch (error) {
