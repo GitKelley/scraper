@@ -60,7 +60,26 @@ export async function scrapeRental(url) {
     
     console.log('Using Playwright browsers from:', browsersPath);
     
-    browser = await chromium.launch({
+    // Try to find the browser executable
+    const possiblePaths = [
+      `${browsersPath}/chromium_headless_shell-1194/chrome-linux/headless_shell`,
+      `${browsersPath}/chromium-1194/chrome-linux/chrome`,
+      `${browsersPath}/chromium_headless_shell-1194/headless_shell-linux/headless_shell`
+    ];
+    
+    let executablePath = null;
+    for (const possiblePath of possiblePaths) {
+      try {
+        await fs.access(possiblePath);
+        executablePath = possiblePath;
+        console.log('Found browser at:', executablePath);
+        break;
+      } catch (e) {
+        // Try next path
+      }
+    }
+    
+    const launchOptions = {
       headless: true,
       args: [
         '--no-sandbox',
@@ -69,7 +88,14 @@ export async function scrapeRental(url) {
         '--disable-gpu',
         '--single-process'
       ]
-    });
+    };
+    
+    // Use executablePath if we found it
+    if (executablePath) {
+      launchOptions.executablePath = executablePath;
+    }
+    
+    browser = await chromium.launch(launchOptions);
 
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
