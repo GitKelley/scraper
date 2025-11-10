@@ -48,7 +48,9 @@ npm run start:headed
 
 The API will be available at `http://localhost:3000/api/scrape-rental`
 
-## API Endpoint
+## API Endpoints
+
+### Start Scraping Job
 
 **POST** `/api/scrape-rental`
 
@@ -61,6 +63,83 @@ Accepts a JSON body with a URL field:
 ```
 
 Or any of these field names: `url`, `rentalUrl`, `link`, `Rental URL`, `Rental Link`
+
+**Immediate Response (for Zapier's 30-second timeout):**
+```json
+{
+  "jobId": "job_1234567890_abc123",
+  "status": "processing",
+  "message": "Scraping started, check back in 2-3 minutes",
+  "checkUrl": "https://your-app.onrender.com/api/scrape-rental/job_1234567890_abc123"
+}
+```
+
+### Get Job Results
+
+**GET** `/api/scrape-rental/:jobId`
+
+Check the status of a scraping job. Returns:
+
+- **If still processing:**
+```json
+{
+  "jobId": "job_1234567890_abc123",
+  "status": "processing",
+  "message": "Scraping still in progress, please check again in a moment"
+}
+```
+
+- **If completed:**
+```json
+{
+  "success": true,
+  "message": "Rental scraped successfully!",
+  "title": "7 Bedroom House in Downtown Banner Elk!",
+  "url": "https://www.vrbo.com/3334535",
+  "source": "VRBO",
+  "description": "...",
+  "pricePerNight": 1101,
+  "bedrooms": 7,
+  "bathrooms": 8,
+  "guests": 14,
+  "location": "Banner Elk, NC",
+  "rating": 4.5,
+  "images": ["https://..."],
+  "scrapedAt": "2025-11-10T05:33:16.474Z",
+  "tripType": "New Years Trip"
+}
+```
+
+- **If failed:**
+```json
+{
+  "jobId": "job_1234567890_abc123",
+  "status": "failed",
+  "error": "Error message",
+  "message": "Scraping failed"
+}
+```
+
+**Note:** Jobs expire after 10 minutes. If a job is not found, it may have expired.
+
+## Zapier Integration
+
+Since Zapier has a 30-second timeout on webhooks, use this workflow:
+
+1. **First Webhook (POST `/api/scrape-rental`)** - Returns immediately with `jobId`
+2. **Delay Step** - Wait 2-3 minutes
+3. **Second Webhook (GET `/api/scrape-rental/:jobId`)** - Get the results
+
+**Zapier Setup:**
+
+1. **Trigger: Google Forms** → New Form Response
+2. **Action: Webhooks by Zapier** → POST
+   - URL: `https://your-app.onrender.com/api/scrape-rental`
+   - Data: `{"url": "[URL from Google Form]"}`
+3. **Action: Delay** → Wait 2-3 minutes
+4. **Action: Webhooks by Zapier** → GET
+   - URL: `https://your-app.onrender.com/api/scrape-rental/{{jobId}}` (use jobId from step 2)
+5. **Action: Notion** → Create Page (use data from step 4)
 
 **Response:**
 ```json

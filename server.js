@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { scrapeRental } from './src/scraper.js';
+import { createJob, getJob, setJobResult, setJobError } from './src/job-queue.js';
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ app.get('/health', (req, res) => {
 });
 
 // Main endpoint - called by Zapier webhook from Google Forms
+// Returns immediately with jobId (for Zapier's 30-second timeout)
 app.post('/api/scrape-rental', async (req, res) => {
   try {
     // Zapier will send data from Google Forms
@@ -35,44 +37,99 @@ app.post('/api/scrape-rental', async (req, res) => {
       return res.status(400).json({ error: 'Invalid URL format' });
     }
 
-    console.log(`Scraping rental from: ${url}`);
+    // Create a job and return immediately
+    const jobId = createJob();
+    console.log(`Created job ${jobId} for URL: ${url}`);
 
-    // Scrape the rental page (works with any rental website)
-    const rentalData = await scrapeRental(url);
+    // Start scraping in the background (don't await)
+    scrapeRental(url)
+      .then(rentalData => {
+        if (!rentalData) {
+          setJobError(jobId, new Error('Failed to scrape rental data'));
+          return;
+        }
 
-    if (!rentalData) {
-      return res.status(500).json({ error: 'Failed to scrape rental data' });
-    }
+        const result = {
+          success: true,
+          message: 'Rental scraped successfully!',
+          title: rentalData.title,
+          url: rentalData.url,
+          source: rentalData.source,
+          description: rentalData.description,
+          pricePerNight: rentalData.pricePerNight,
+          bedrooms: rentalData.bedrooms,
+          bathrooms: rentalData.bathrooms,
+          guests: rentalData.guests,
+          location: rentalData.location,
+          rating: rentalData.rating,
+          images: rentalData.images || rentalData.imageUrls || [],
+          scrapedAt: rentalData.scrapedAt,
+          tripType: 'New Years Trip'
+        };
 
-    console.log('Scraped data:', JSON.stringify(rentalData, null, 2));
+        console.log(`Job ${jobId} completed successfully`);
+        setJobResult(jobId, result);
+      })
+      .catch(error => {
+        console.error(`Job ${jobId} failed:`, error);
+        setJobError(jobId, error);
+      });
 
-    // Return scraped data - Zapier will use this response to create Notion page
+    // Return immediately with jobId (for Zapier's 30-second timeout)
+    const baseUrl = req.protocol + '://' + req.get('host');
     res.json({
-      success: true,
-      message: 'Rental scraped successfully!',
-      // All rental data fields are at the root level for Zapier to use
-      title: rentalData.title,
-      url: rentalData.url,
-      source: rentalData.source,
-      description: rentalData.description,
-      pricePerNight: rentalData.pricePerNight,
-      bedrooms: rentalData.bedrooms,
-      bathrooms: rentalData.bathrooms,
-      guests: rentalData.guests,
-      location: rentalData.location,
-      rating: rentalData.rating,
-      images: rentalData.images || rentalData.imageUrls || [],
-      scrapedAt: rentalData.scrapedAt,
-      tripType: 'New Years Trip'
+      jobId: jobId,
+      status: 'processing',
+      message: 'Scraping started, check back in 2-3 minutes',
+      checkUrl: `${baseUrl}/api/scrape-rental/${jobId}`
     });
 
   } catch (error) {
-    console.error('Error processing rental submission:', error);
+    console.error('Error creating scraping job:', error);
     res.status(500).json({ 
-      error: 'Failed to process rental submission',
+      error: 'Failed to create scraping job',
       message: error.message 
     });
   }
+});
+
+// Get job results endpoint - called by Zapier after delay
+app.get('/api/scrape-rental/:jobId', (req, res) => {
+  const { jobId } = req.params;
+  const job = getJob(jobId);
+
+  if (!job) {
+    return res.status(404).json({
+      error: 'Job not found',
+      message: 'Job may have expired (jobs expire after 10 minutes) or invalid jobId'
+    });
+  }
+
+  if (job.status === 'processing') {
+    return res.json({
+      jobId: job.id,
+      status: 'processing',
+      message: 'Scraping still in progress, please check again in a moment'
+    });
+  }
+
+  if (job.status === 'failed') {
+    return res.status(500).json({
+      jobId: job.id,
+      status: 'failed',
+      error: job.error,
+      message: 'Scraping failed'
+    });
+  }
+
+  if (job.status === 'completed') {
+    return res.json(job.result);
+  }
+
+  res.status(500).json({
+    error: 'Unknown job status',
+    job: job
+  });
 });
 
 app.listen(PORT, () => {
