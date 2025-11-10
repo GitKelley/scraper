@@ -2,9 +2,11 @@ services:
   - type: web
     name: scraper
     env: node
-    buildCommand: npm install && npx playwright install chromium
+    buildCommand: chmod +x render-build.sh && ./render-build.sh
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/project/.cache/ms-playwright
 

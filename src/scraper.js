@@ -15,6 +15,11 @@ export async function scrapeRental(url) {
   let browser = null;
   
   try {
+    // Set Playwright browsers path if not set
+    if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
+      process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/render/project/.cache/ms-playwright';
+    }
+    
     browser = await chromium.launch({
       headless: true,
       args: [
