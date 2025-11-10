@@ -346,6 +346,7 @@ async function scrapeVRBO(page) {
     console.log('Found', h1Count, 'h1 elements');
     
     // Wait for h1 to have actual text content (not just empty element)
+    let h1Text = null;
     if (h1Count > 0) {
       console.log('Waiting for h1 to have text content...');
       try {
@@ -362,27 +363,35 @@ async function scrapeVRBO(page) {
         console.log('Error waiting for h1 text:', e.message);
       }
       
-      const h1Text = await page.locator('h1').first().textContent().catch(() => null);
+      h1Text = await page.locator('h1').first().textContent().catch(() => null);
       console.log('First h1 text:', h1Text);
     }
     
-    // Title - use timeout to avoid hanging
+    // Title - use the h1 text we already found, or try other selectors
     try {
-      data.title = await Promise.race([
-        page.locator('h1').first().textContent(),
-        page.locator('[data-testid="listing-title"]').textContent(),
-        page.locator('.listing-title').textContent(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-      ]).catch(() => null);
-      
-      // Clean up title if it's just whitespace
-      if (data.title) {
-        data.title = data.title.trim();
-        if (data.title.length === 0) {
-          data.title = null;
+      // Use the h1 text we already found
+      if (h1Text && h1Text.trim().length > 0) {
+        data.title = h1Text.trim();
+      } else {
+        // If h1 didn't work, try other selectors
+        data.title = await Promise.race([
+          page.locator('[data-testid="listing-title"]').textContent(),
+          page.locator('.listing-title').textContent(),
+          page.locator('h1').first().textContent(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        ]).catch(() => null);
+        
+        if (data.title) {
+          data.title = data.title.trim();
         }
       }
+      
+      // Clean up title if it's just whitespace
+      if (data.title && data.title.length === 0) {
+        data.title = null;
+      }
     } catch (e) {
+      console.log('Error getting title:', e.message);
       data.title = null;
     }
     console.log('Title found:', data.title);
@@ -399,46 +408,57 @@ async function scrapeVRBO(page) {
       data.description = null;
     }
 
-    // Price per night - with timeout
+    // Price per night - with timeout and better selectors
     console.log('Scraping price...');
     const priceText = await Promise.race([
       page.locator('[data-testid="price"]').textContent(),
+      page.locator('[data-stid*="price"]').textContent(),
       page.locator('.price').first().textContent(),
       page.locator('[class*="price"]').first().textContent(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+      page.locator('text=/\$|USD|per night/i').first().textContent(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
     ]).catch(() => null);
     data.pricePerNight = extractPrice(priceText);
-    console.log('Price found:', data.pricePerNight);
+    console.log('Price found:', data.pricePerNight, '(from text:', priceText, ')');
 
-    // Bedrooms - with timeout
+    // Bedrooms - with timeout and better selectors
     console.log('Scraping bedrooms...');
+    // Try to find text containing "bedroom" or "bed" and extract number
     const bedroomsText = await Promise.race([
       page.locator('[data-testid="bedrooms"]').textContent(),
+      page.locator('[data-stid*="bedroom"]').textContent(),
+      page.locator('text=/\\d+\\s*bedroom/i').first().textContent(),
+      page.locator('text=/\\d+\\s*bed/i').first().textContent(),
       page.locator('text=/bedroom/i').first().textContent(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
     ]).catch(() => null);
     data.bedrooms = extractNumber(bedroomsText);
-    console.log('Bedrooms found:', data.bedrooms);
+    console.log('Bedrooms found:', data.bedrooms, '(from text:', bedroomsText, ')');
 
-    // Bathrooms - with timeout
+    // Bathrooms - with timeout and better selectors
     console.log('Scraping bathrooms...');
     const bathroomsText = await Promise.race([
       page.locator('[data-testid="bathrooms"]').textContent(),
+      page.locator('[data-stid*="bathroom"]').textContent(),
+      page.locator('text=/\\d+\\s*bathroom/i').first().textContent(),
+      page.locator('text=/\\d+\\s*bath/i').first().textContent(),
       page.locator('text=/bathroom/i').first().textContent(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
     ]).catch(() => null);
     data.bathrooms = extractNumber(bathroomsText);
-    console.log('Bathrooms found:', data.bathrooms);
+    console.log('Bathrooms found:', data.bathrooms, '(from text:', bathroomsText, ')');
 
-    // Guests - with timeout
+    // Guests - with timeout and better selectors
     console.log('Scraping guests...');
     const guestsText = await Promise.race([
       page.locator('[data-testid="guests"]').textContent(),
+      page.locator('[data-stid*="guest"]').textContent(),
+      page.locator('text=/\\d+\\s*(sleeps|guests|people)/i').first().textContent(),
       page.locator('text=/sleeps|guests/i').first().textContent(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
     ]).catch(() => null);
     data.guests = extractNumber(guestsText);
-    console.log('Guests found:', data.guests);
+    console.log('Guests found:', data.guests, '(from text:', guestsText, ')');
 
     // Location - with timeout
     console.log('Scraping location...');
