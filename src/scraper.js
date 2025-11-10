@@ -177,7 +177,7 @@ export async function scrapeRental(url) {
       // Continue anyway - stealth measures may not be as effective but scraping can still work
     }
     
-    const timeout = process.env.NODE_ENV === 'production' ? 10000 : 10000;
+    const timeout = process.env.NODE_ENV === 'production' ? 30000 : 10000;
     
     // Navigate to the page - use domcontentloaded for faster navigation
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
