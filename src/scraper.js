@@ -182,8 +182,8 @@ export async function scrapeRental(url) {
     // Navigate to the page - use domcontentloaded for faster navigation
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
     
-    // Wait for dynamic content to render (3 seconds)
-    await page.waitForTimeout(3000);
+    // Wait for dynamic content to render (10 seconds)
+    await page.waitForTimeout(10000);
 
     // Determine which site we're scraping (for source identification)
     const hostname = new URL(url).hostname.toLowerCase();
