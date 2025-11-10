@@ -24,18 +24,31 @@ export async function scrapeRental(url) {
     let browsersPath = null;
     let executablePath = null;
     
+    // Allow headed mode for local debugging or Linux servers (set HEADED=true environment variable)
+    // On Linux, headed mode requires Xvfb (virtual display server) - handled by Docker
+    const headed = process.env.HEADED === 'true' || process.env.HEADED === '1';
+    console.log('HEADED environment variable:', process.env.HEADED);
+    console.log('Running in headed mode:', headed);
+    
     if (isRender) {
-      browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/render/project/.cache/ms-playwright';
-      process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
-      process.env.PW_BROWSERS_PATH = browsersPath;
+      // In Docker, Playwright installs browsers to ~/.cache/ms-playwright by default
+      // Let Playwright use its default path - don't override it
+      const defaultPath = path.join(process.env.HOME || '/root', '.cache/ms-playwright');
+      console.log('Default Playwright browsers path:', defaultPath);
       
-      // Try to find the browser executable in common locations (Render/Linux)
+      // Try to find the browser executable in common locations (Docker/Linux)
+      // For headed mode, we need chromium (not headless_shell)
       const possiblePaths = [
-        `${browsersPath}/chromium_headless_shell-1194/chrome-linux/headless_shell`,
-        `${browsersPath}/chromium_headless_shell-1194/headless_shell-linux/headless_shell`,
-        `${browsersPath}/chromium-1194/chrome-linux/chrome`
+        // Headed mode - full chromium (check multiple version directories)
+        path.join(defaultPath, 'chromium-1194/chrome-linux/chrome'),
+        path.join(defaultPath, 'chromium-1200/chrome-linux/chrome'),
+        path.join(defaultPath, 'chromium-1210/chrome-linux/chrome'),
+        // Headless mode fallback
+        path.join(defaultPath, 'chromium_headless_shell-1194/chrome-linux/headless_shell'),
+        path.join(defaultPath, 'chromium_headless_shell-1194/headless_shell-linux/headless_shell')
       ];
       
+      console.log('Searching for browser executable...');
       for (const possiblePath of possiblePaths) {
         try {
           await fs.access(possiblePath);
@@ -46,11 +59,32 @@ export async function scrapeRental(url) {
           // Try next path
         }
       }
+      
+      // If not found, try to find any chromium directory
+      if (!executablePath) {
+        try {
+          const files = await fs.readdir(defaultPath);
+          const chromiumDirs = files.filter(f => f.startsWith('chromium-') && !f.includes('headless'));
+          for (const dir of chromiumDirs) {
+            const chromePath = path.join(defaultPath, dir, 'chrome-linux/chrome');
+            try {
+              await fs.access(chromePath);
+              executablePath = chromePath;
+              console.log('Found browser executable at:', executablePath);
+              break;
+            } catch (e) {
+              // Try next
+            }
+          }
+        } catch (e) {
+          console.log('Could not read browsers directory:', e.message);
+        }
+      }
+      
+      if (!executablePath) {
+        console.log('Browser executable not found in expected paths, letting Playwright find it automatically');
+      }
     }
-    
-    // Allow headed mode for local debugging or Linux servers (set HEADED=true environment variable)
-    // On Linux, headed mode requires Xvfb (virtual display server) - handled by xvfb-run
-    const headed = process.env.HEADED === 'true' || process.env.HEADED === '1';
     
     const launchOptions = {
       headless: !headed,

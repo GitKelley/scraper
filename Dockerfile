@@ -17,7 +17,9 @@ COPY package*.json ./
 RUN npm install
 
 # Install Playwright browsers
+# Install chromium (not headless_shell) for headed mode support
 RUN npx playwright install chromium
+RUN npx playwright install-deps chromium
 
 # Copy application files
 COPY . .

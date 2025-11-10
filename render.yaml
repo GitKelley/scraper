@@ -6,8 +6,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /opt/render/project/.cache/ms-playwright
       - key: HEADED
         value: "true"
       - key: DISPLAY
