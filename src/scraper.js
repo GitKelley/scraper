@@ -144,47 +144,75 @@ export async function scrapeRental(url) {
 
     const page = await context.newPage();
     
+    // Listen for console messages and errors (set up before navigation)
+    page.on('console', msg => console.log('Browser console:', msg.text()));
+    page.on('pageerror', error => console.log('Page error:', error.message));
+    
     // Remove webdriver property to avoid detection
-    await page.addInitScript(() => {
-      // Remove webdriver flag
-      Object.defineProperty(navigator, 'webdriver', {
-        get: () => false,
+    // MUST be called before page.goto() - init scripts run before page loads
+    try {
+      await page.addInitScript(() => {
+        // Remove webdriver flag
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => false,
+        });
+        
+        // Override permissions
+        const originalQuery = window.navigator.permissions.query;
+        window.navigator.permissions.query = (parameters) => (
+          parameters.name === 'notifications' ?
+            Promise.resolve({ state: Notification.permission }) :
+            originalQuery(parameters)
+        );
+        
+        // Add chrome object
+        window.chrome = {
+          runtime: {},
+        };
+        
+        // Override plugins
+        Object.defineProperty(navigator, 'plugins', {
+          get: () => [1, 2, 3, 4, 5],
+        });
+        
+        // Override languages
+        Object.defineProperty(navigator, 'languages', {
+          get: () => ['en-US', 'en'],
+        });
       });
-      
-      // Override permissions
-      const originalQuery = window.navigator.permissions.query;
-      window.navigator.permissions.query = (parameters) => (
-        parameters.name === 'notifications' ?
-          Promise.resolve({ state: Notification.permission }) :
-          originalQuery(parameters)
-      );
-      
-      // Add chrome object
-      window.chrome = {
-        runtime: {},
-      };
-      
-      // Override plugins
-      Object.defineProperty(navigator, 'plugins', {
-        get: () => [1, 2, 3, 4, 5],
-      });
-      
-      // Override languages
-      Object.defineProperty(navigator, 'languages', {
-        get: () => ['en-US', 'en'],
-      });
-    });
+    } catch (e) {
+      console.log('Warning: Could not add init script (page may already be loaded):', e.message);
+      // Continue anyway - stealth measures may not be as effective but scraping can still work
+    }
     
     console.log(`Navigating to: ${url}`);
     // Use shorter timeout for faster testing
     const timeout = process.env.NODE_ENV === 'production' ? 60000 : 10000;
     
-    // Listen for console messages and errors
-    page.on('console', msg => console.log('Browser console:', msg.text()));
-    page.on('pageerror', error => console.log('Page error:', error.message));
-    
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
     console.log('Page navigation complete');
+
+    // Wait for page to fully load - wait for network to be idle or specific elements
+    console.log('Waiting for page content to load...');
+    try {
+      // Wait for either network idle or specific VRBO content to appear
+      await Promise.race([
+        page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null),
+        page.waitForSelector('h1', { timeout: 30000 }).catch(() => null),
+        page.waitForSelector('[data-stid="content-hotel-address"]', { timeout: 30000 }).catch(() => null),
+        page.waitForFunction(
+          () => document.title && document.title.length > 0 && !document.title.includes('Loading'),
+          { timeout: 30000 }
+        ).catch(() => null),
+        new Promise(resolve => setTimeout(resolve, 10000))
+      ]);
+    } catch (e) {
+      console.log('Wait for content timed out:', e.message);
+    }
+    
+    // Additional wait for dynamic content
+    await page.waitForTimeout(3000);
+    console.log('Content load wait complete');
 
     // Verify page loaded - check title and URL
     let pageTitle = await page.title();
@@ -199,18 +227,17 @@ export async function scrapeRental(url) {
       console.log('Detected bot detection page, waiting for challenge to complete...');
       
       // Wait for the page to potentially redirect or load content after bot detection
-      // Try waiting for the title to change or for actual content to appear
       try {
         await Promise.race([
           // Wait for title to change (not "Bot or Not")
           page.waitForFunction(
-            () => !document.title.includes('Bot or Not') && !document.title.toLowerCase().includes('bot'),
-            { timeout: 15000 }
+            () => !document.title.includes('Bot or Not') && !document.title.toLowerCase().includes('bot') && document.title.length > 0,
+            { timeout: 20000 }
           ).catch(() => null),
           // Or wait for actual VRBO content to appear
-          page.waitForSelector('[data-stid="content-hotel-address"], h1:not(:has-text("Bot"))', { timeout: 15000 }).catch(() => null),
+          page.waitForSelector('[data-stid="content-hotel-address"], h1:not(:has-text("Bot"))', { timeout: 20000 }).catch(() => null),
           // Or just wait a bit
-          new Promise(resolve => setTimeout(resolve, 10000))
+          new Promise(resolve => setTimeout(resolve, 15000))
         ]);
         
         // Check title again
@@ -218,14 +245,6 @@ export async function scrapeRental(url) {
         pageUrl = page.url();
         console.log('After waiting - Page title:', pageTitle);
         console.log('After waiting - Page URL:', pageUrl);
-        
-        // If still on bot detection page, wait a bit more
-        if (pageTitle.includes('Bot or Not') || pageTitle.toLowerCase().includes('bot')) {
-          console.log('Still on bot detection page, waiting additional time...');
-          await page.waitForTimeout(5000);
-          pageTitle = await page.title();
-          console.log('Final page title:', pageTitle);
-        }
       } catch (e) {
         console.log('Error waiting for bot detection to complete:', e.message);
       }
@@ -236,32 +255,16 @@ export async function scrapeRental(url) {
     console.log('Page body length:', bodyText.length);
     console.log('Page body preview:', bodyText.substring(0, 200));
 
-    // Save HTML and screenshot for debugging (only in local/dev mode)
-    if (process.env.NODE_ENV !== 'production') {
-      try {
-        const html = await page.content();
-        await fs.writeFile(path.join(__dirname, '../debug-page.html'), html);
-        console.log('Saved page HTML to debug-page.html');
-        
-        await page.screenshot({ path: path.join(__dirname, '../debug-screenshot.png'), fullPage: true });
-        console.log('Saved screenshot to debug-screenshot.png');
-      } catch (e) {
-        console.log('Could not save debug files:', e.message);
-      }
-    }
-
-    // Wait for dynamic content - try waiting for common VRBO elements
-    console.log('Waiting for content to load...');
+    // Wait for specific VRBO elements to appear before scraping
+    console.log('Waiting for VRBO content elements...');
     try {
-      // Wait for either a title or any content to appear
       await Promise.race([
-        page.waitForSelector('h1', { timeout: 5000 }).catch(() => null),
-        page.waitForSelector('[data-stid="content-hotel-address"]', { timeout: 5000 }).catch(() => null),
-        page.waitForSelector('body', { timeout: 5000 }).catch(() => null),
-        new Promise(resolve => setTimeout(resolve, 3000))
+        page.waitForSelector('h1', { timeout: 10000 }).catch(() => null),
+        page.waitForSelector('[data-stid="content-hotel-address"]', { timeout: 10000 }).catch(() => null),
+        new Promise(resolve => setTimeout(resolve, 5000))
       ]);
     } catch (e) {
-      console.log('Wait for elements timed out:', e.message);
+      console.log('Wait for VRBO elements timed out:', e.message);
     }
     
     await page.waitForTimeout(2000);
@@ -341,7 +344,24 @@ async function scrapeVRBO(page) {
     // Check what h1 elements exist
     const h1Count = await page.locator('h1').count();
     console.log('Found', h1Count, 'h1 elements');
+    
+    // Wait for h1 to have actual text content (not just empty element)
     if (h1Count > 0) {
+      console.log('Waiting for h1 to have text content...');
+      try {
+        await page.waitForFunction(
+          () => {
+            const h1 = document.querySelector('h1');
+            return h1 && h1.textContent && h1.textContent.trim().length > 0;
+          },
+          { timeout: 10000 }
+        ).catch(() => {
+          console.log('H1 text wait timed out, continuing anyway');
+        });
+      } catch (e) {
+        console.log('Error waiting for h1 text:', e.message);
+      }
+      
       const h1Text = await page.locator('h1').first().textContent().catch(() => null);
       console.log('First h1 text:', h1Text);
     }
@@ -352,8 +372,16 @@ async function scrapeVRBO(page) {
         page.locator('h1').first().textContent(),
         page.locator('[data-testid="listing-title"]').textContent(),
         page.locator('.listing-title').textContent(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
       ]).catch(() => null);
+      
+      // Clean up title if it's just whitespace
+      if (data.title) {
+        data.title = data.title.trim();
+        if (data.title.length === 0) {
+          data.title = null;
+        }
+      }
     } catch (e) {
       data.title = null;
     }
