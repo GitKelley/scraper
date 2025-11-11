@@ -272,9 +272,17 @@ const BaseParser = {
             seenUrls.add(url);
             if (images.length >= 15) break;
           } else if (hostname.includes('airbnb') && url.includes('a0.muscache.com') && !seenUrls.has(url)) {
-            images.push(url);
-            seenUrls.add(url);
-            if (images.length >= 15) break;
+            // Filter out platform assets, UI elements, and user profile pictures
+            const isPropertyPhoto = 
+              url.includes('/pictures/hosting/') || 
+              url.includes('/pictures/prohost-api/') ||
+              (url.includes('/pictures/') && !url.includes('airbnb-platform-assets') && !url.includes('/user/') && !url.includes('laurel') && !url.includes('GuestFavorite') && !url.includes('search-bar-icons'));
+            
+            if (isPropertyPhoto) {
+              images.push(url);
+              seenUrls.add(url);
+              if (images.length >= 15) break;
+            }
           }
         }
       }
