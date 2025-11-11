@@ -58,6 +58,7 @@ app.post('/api/scrape-rental', async (req, res) => {
       bathrooms: rentalData.bathrooms,
       sleeps: rentalData.sleeps,
       location: rentalData.location,
+      amenities: rentalData.amenities || [],
       images: rentalData.images || rentalData.imageUrls || [],
       scrapedAt: rentalData.scrapedAt,
       tripType: 'New Years Trip'

@@ -161,6 +161,73 @@ function parseMarkdown(markdown, hostname) {
       }
     }
     
+    // Amenities - look for amenities section or common amenity terms
+    data.amenities = [];
+    const amenitiesSet = new Set();
+    
+    // Common amenities to look for
+    const commonAmenities = [
+      'Kitchen', 'WiFi', 'Wi-Fi', 'Free WiFi', 'Air conditioning', 'AC', 'Heating',
+      'Parking', 'Parking available', 'Garage', 'Outdoor Space', 'Patio', 'Balcony',
+      'Fireplace', 'Pool', 'Hot tub', 'Jacuzzi', 'Washer', 'Dryer', 'Dishwasher',
+      'Microwave', 'Refrigerator', 'TV', 'Television', 'Cable TV', 'Internet',
+      'Pet friendly', 'Pets allowed', 'Smoking allowed', 'Non-smoking',
+      'Beach access', 'Waterfront', 'Mountain view', 'Ocean view', 'Gym', 'Fitness center',
+      'Theater room', 'Home theater', 'Movie theater', 'Game room', 'Games room',
+      'Pool table', 'Billiards', 'Ping pong', 'Table tennis', 'Foosball',
+      'Arcade', 'Video games', 'Gaming room', 'Entertainment room', 'Media room',
+      'Wine cellar', 'Bar', 'Wet bar', 'Sauna', 'Steam room', 'Spa',
+      'Tennis court', 'Basketball court', 'Volleyball court', 'Playground',
+      'Library', 'Office', 'Workspace', 'Golf course access', 'Ski-in/ski-out'
+    ];
+    
+    // Try to find amenities section (look for "Amenities" heading followed by list items)
+    const amenitiesSectionMatch = markdown.match(/##?\s*Amenities[^\n]*\n([\s\S]*?)(?=\n##|\n#|$)/i);
+    if (amenitiesSectionMatch) {
+      const amenitiesSection = amenitiesSectionMatch[1];
+      // Look for list items (markdown lists start with - or *)
+      const listItems = amenitiesSection.match(/^[\s]*[-*]\s*(.+)$/gm);
+      if (listItems) {
+        for (const item of listItems) {
+          const amenity = item.replace(/^[\s]*[-*]\s*/, '').trim();
+          if (amenity && !amenitiesSet.has(amenity.toLowerCase())) {
+            data.amenities.push(amenity);
+            amenitiesSet.add(amenity.toLowerCase());
+          }
+        }
+      }
+    }
+    
+    // If no amenities section found, search for common amenity terms in the markdown
+    if (data.amenities.length === 0) {
+      const markdownLower = markdown.toLowerCase();
+      // Sort by length (longer phrases first) to avoid duplicates like "Parking" matching before "Parking available"
+      const sortedAmenities = [...commonAmenities].sort((a, b) => b.length - a.length);
+      for (const amenity of sortedAmenities) {
+        const amenityLower = amenity.toLowerCase();
+        // Check if this amenity is already covered by a longer one we found
+        const isDuplicate = Array.from(amenitiesSet).some(existing => 
+          existing.includes(amenityLower) || amenityLower.includes(existing)
+        );
+        if (!isDuplicate) {
+          // Look for the amenity as a standalone word or in a phrase
+          const regex = new RegExp(`\\b${amenityLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          if (regex.test(markdown)) {
+            data.amenities.push(amenity);
+            amenitiesSet.add(amenityLower);
+          }
+        }
+      }
+    } else {
+      // Deduplicate amenities list (remove shorter versions if longer ones exist)
+      data.amenities = data.amenities.filter((amenity, index) => {
+        const amenityLower = amenity.toLowerCase();
+        return !data.amenities.some((other, otherIndex) => 
+          otherIndex !== index && 
+          (other.toLowerCase().includes(amenityLower) && other.length > amenity.length)
+        );
+      });
+    }
     
   } catch (error) {
     console.error('Error parsing markdown:', error);
