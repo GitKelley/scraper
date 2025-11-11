@@ -136,11 +136,38 @@ export async function scrapeRental(url) {
 
     const page = await context.newPage();
     
+    // Block unnecessary resources to speed up loading (especially in production)
+    await page.route('**/*', (route) => {
+      const url = route.request().url();
+      // Block analytics, ads, tracking, and Google Sign-In scripts
+      if (
+        url.includes('google-analytics') ||
+        url.includes('googletagmanager') ||
+        url.includes('googleapis.com/gsi') ||
+        url.includes('doubleclick') ||
+        url.includes('facebook.net') ||
+        url.includes('analytics') ||
+        url.includes('tracking') ||
+        url.includes('advertising') ||
+        url.includes('.woff') ||
+        url.includes('.woff2') ||
+        url.includes('.ttf') ||
+        url.includes('.eot') ||
+        url.includes('fonts.googleapis.com')
+      ) {
+        route.abort();
+      } else {
+        route.continue();
+      }
+    });
+    
     // Listen for console messages and errors (set up before navigation)
     // Only log errors, not all console messages (too noisy)
     page.on('pageerror', error => {
-      // Log full error details for debugging
-      console.error('Page error:', error.message, error.stack || 'No stack trace');
+      // Only log non-Google Sign-In errors (those are expected and harmless)
+      if (!error.message.includes('accounts.google.com/gsi')) {
+        console.error('Page error:', error.message, error.stack || 'No stack trace');
+      }
     });
     
     // Remove webdriver property to avoid detection
@@ -182,25 +209,39 @@ export async function scrapeRental(url) {
     
     const timeout = process.env.NODE_ENV === 'production' ? 60000 : 10000;
     
-    // Navigate to the page - use 'load' in production for more reliable loading
-    // 'load' waits for all resources (images, stylesheets, etc.) to finish loading
-    const waitUntil = process.env.NODE_ENV === 'production' ? 'load' : 'domcontentloaded';
-    await page.goto(url, { waitUntil, timeout });
+    // Retry logic for production - VRBO can be flaky
+    let retries = process.env.NODE_ENV === 'production' ? 2 : 0;
+    let lastError = null;
     
-    // Wait for dynamic content to render (10 seconds)
-    await page.waitForTimeout(10000);
-    
-    // In production, also wait for a key element to ensure page is ready
-    if (process.env.NODE_ENV === 'production') {
+    while (retries >= 0) {
       try {
-        // Wait for either h1 (title) or body to be ready
+        // Use 'domcontentloaded' for faster loading, then wait for specific elements
+        // This is more reliable than 'load' which waits for ALL resources
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+        
+        // Wait for key elements to ensure page content is loaded
+        // This is more reliable than waiting for 'load' which can timeout on slow resources
         await Promise.race([
-          page.waitForSelector('h1', { timeout: 10000 }).catch(() => null),
-          page.waitForSelector('body', { timeout: 10000 }).catch(() => null),
+          page.waitForSelector('h1', { timeout: 15000 }).catch(() => null),
+          page.waitForSelector('body', { timeout: 15000 }).catch(() => null),
         ]);
-      } catch (e) {
-        // Continue anyway - page might still be usable
-        console.log('Warning: Could not wait for key elements, continuing anyway');
+        
+        // Wait for dynamic content to render
+        await page.waitForTimeout(10000);
+        
+        // Success - break out of retry loop
+        break;
+      } catch (error) {
+        lastError = error;
+        if (retries > 0) {
+          console.log(`Page load failed, retrying... (${retries} attempts left)`);
+          retries--;
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          // Last attempt failed, throw the error
+          throw error;
+        }
       }
     }
 
