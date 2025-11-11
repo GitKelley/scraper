@@ -15,6 +15,52 @@ const __dirname = path.dirname(__filename);
  * Uses generic selectors that work across multiple platforms
  */
 export async function scrapeRental(url) {
+  // Try ScraperAPI first if API key is set (free tier: 1000 requests/month)
+  const scraperApiKey = process.env.SCRAPERAPI_KEY;
+  if (scraperApiKey) {
+    try {
+      console.log(`[${new Date().toISOString()}] Attempting ScraperAPI...`);
+      const result = await scrapeWithScraperAPI(url, scraperApiKey);
+      if (result && (result.title || result.description || result.images?.length > 0)) {
+        console.log(`[${new Date().toISOString()}] ScraperAPI succeeded!`);
+        return result;
+      }
+    } catch (error) {
+      console.log(`[${new Date().toISOString()}] ScraperAPI failed: ${error.message}, falling back to Playwright...`);
+    }
+  }
+  
+  // Fallback to Playwright (current approach)
+  // Try mobile version first (often less protected)
+  const mobileUrl = url.replace('www.vrbo.com', 'm.vrbo.com').replace('vrbo.com', 'm.vrbo.com');
+  const urlsToTry = [url, mobileUrl].filter((u, i, arr) => arr.indexOf(u) === i); // Remove duplicates
+  
+  let browser = null;
+  let lastError = null;
+  
+  // Try each URL until one works
+  for (const tryUrl of urlsToTry) {
+    try {
+      const result = await attemptScrape(tryUrl);
+      if (result && (result.title || result.description || result.images?.length > 0)) {
+        return result; // Got some data, return it
+      }
+    } catch (error) {
+      lastError = error;
+      console.log(`[${new Date().toISOString()}] Failed to scrape ${tryUrl}, trying next URL...`);
+      continue;
+    }
+  }
+  
+  // If all URLs failed, throw the last error
+  if (lastError) {
+    throw lastError;
+  }
+  
+  return null;
+}
+
+async function attemptScrape(url) {
   let browser = null;
   
   try {
@@ -218,29 +264,42 @@ export async function scrapeRental(url) {
     while (retries >= 0) {
       try {
         console.log(`[${new Date().toISOString()}] Attempting page.goto (${retries + 1} attempts remaining)...`);
-        // Use 'domcontentloaded' for faster loading, then wait for specific elements
-        // This is more reliable than 'load' which waits for ALL resources
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
         
-        // Log page state to see what we actually loaded
-        const currentUrl = page.url();
-        const pageTitle = await page.title().catch(() => 'Unable to get title');
-        const bodyExists = await page.locator('body').count().catch(() => 0);
-        const h1Exists = await page.locator('h1').count().catch(() => 0);
+        // Try page.goto, but don't fail if it times out - we might still have HTML
+        let navigationSucceeded = false;
+        try {
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+          navigationSucceeded = true;
+          console.log(`[${new Date().toISOString()}] Page.goto completed successfully`);
+        } catch (navError) {
+          console.log(`[${new Date().toISOString()}] Page.goto timed out, but checking if we have HTML content...`);
+          // Continue anyway - might have HTML even if event didn't fire
+        }
         
-        console.log(`[${new Date().toISOString()}] Page.goto completed`);
-        console.log(`[${new Date().toISOString()}] Current URL: ${currentUrl}`);
-        console.log(`[${new Date().toISOString()}] Page title: ${pageTitle}`);
-        console.log(`[${new Date().toISOString()}] Body elements found: ${bodyExists}`);
-        console.log(`[${new Date().toISOString()}] H1 elements found: ${h1Exists}`);
-        
-        // Log a snippet of the HTML to see what we got
+        // Check if we have HTML content (even if navigation "failed")
+        let hasContent = false;
         try {
           const htmlContent = await page.content();
-          const htmlSnippet = htmlContent.substring(0, 1000);
-          console.log(`[${new Date().toISOString()}] HTML snippet (first 1000 chars):`, htmlSnippet);
+          const bodyExists = await page.locator('body').count().catch(() => 0);
+          const h1Exists = await page.locator('h1').count().catch(() => 0);
+          
+          console.log(`[${new Date().toISOString()}] Current URL: ${page.url()}`);
+          console.log(`[${new Date().toISOString()}] Body elements found: ${bodyExists}`);
+          console.log(`[${new Date().toISOString()}] H1 elements found: ${h1Exists}`);
+          console.log(`[${new Date().toISOString()}] HTML length: ${htmlContent.length} chars`);
+          
+          // If we have body or h1, we have content
+          if (bodyExists > 0 || h1Exists > 0 || htmlContent.length > 1000) {
+            hasContent = true;
+            console.log(`[${new Date().toISOString()}] HTML content detected, continuing with scrape...`);
+          }
         } catch (e) {
-          console.log(`[${new Date().toISOString()}] Could not get HTML content: ${e.message}`);
+          console.log(`[${new Date().toISOString()}] Could not check HTML content: ${e.message}`);
+        }
+        
+        // If navigation failed but we have content, continue anyway
+        if (!navigationSucceeded && !hasContent) {
+          throw new Error('No HTML content available');
         }
         
         // Wait for h1 specifically - this is the title and indicates main content is loaded
@@ -248,9 +307,7 @@ export async function scrapeRental(url) {
           await page.waitForSelector('h1', { timeout: 5000 });
           console.log(`[${new Date().toISOString()}] h1 element found!`);
         } catch (e) {
-          console.log(`[${new Date().toISOString()}] h1 not found, trying body as fallback...`);
-          await page.waitForSelector('body', { timeout: 2000 });
-          console.log(`[${new Date().toISOString()}] body element found`);
+          console.log(`[${new Date().toISOString()}] h1 not found, but continuing anyway...`);
         }
         
         // Wait for dynamic content to render - reduced for faster execution
