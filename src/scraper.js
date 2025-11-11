@@ -4,6 +4,158 @@ import axios from 'axios';
  * Scrapes rental data from any rental website using Firecrawl API
  * Requires FIRECRAWL_API_KEY environment variable
  */
+/**
+ * Normalize mobile app links to web URLs
+ * Handles short links by following redirects
+ */
+async function normalizeUrl(url, visited = new Set()) {
+  // Prevent infinite loops
+  if (visited.has(url)) {
+    console.log(`[URL Normalization] Already visited: ${url}, returning as-is`);
+    return url;
+  }
+  visited.add(url);
+  
+  // Handle VRBO short links (t.vrbo.io) and Branch.io links (a8ro.app.link) - need to follow redirect
+  if (url.includes('t.vrbo.io/') || url.includes('a8ro.app.link/')) {
+    console.log(`[URL Normalization] Resolving short link: ${url}`);
+    try {
+      // First try without following redirects to catch the Location header
+      try {
+        const response = await axios.get(url, {
+          maxRedirects: 0, // Don't follow redirects automatically
+          validateStatus: () => true, // Accept all status codes
+          timeout: 10000
+        });
+        
+        // If we get a redirect status, follow it
+        if (response.status >= 300 && response.status < 400 && response.headers.location) {
+          let redirectUrl = response.headers.location;
+          // If location is relative, make it absolute
+          if (redirectUrl.startsWith('/')) {
+            redirectUrl = `${new URL(url).origin}${redirectUrl}`;
+          } else if (!redirectUrl.startsWith('http')) {
+            redirectUrl = `https://${redirectUrl}`;
+          }
+          console.log(`[URL Normalization] Following redirect to: ${redirectUrl}`);
+          // Recursively resolve - continue following redirects until we reach vrbo.com
+          const resolvedUrl = await normalizeUrl(redirectUrl, visited);
+          // If we've reached a vrbo.com URL, return it; otherwise continue following
+          if (resolvedUrl.includes('vrbo.com')) {
+            return resolvedUrl;
+          }
+          // If not vrbo.com yet, continue following redirects
+          return await normalizeUrl(resolvedUrl, visited);
+        }
+      } catch (redirectError) {
+        // Axios throws an error when maxRedirects is 0 and a redirect is encountered
+        // Extract the Location header from the error response
+        if (redirectError.response?.status >= 300 && redirectError.response?.status < 400 && redirectError.response?.headers?.location) {
+          let redirectUrl = redirectError.response.headers.location;
+          if (redirectUrl.startsWith('/')) {
+            redirectUrl = `${new URL(url).origin}${redirectUrl}`;
+          } else if (!redirectUrl.startsWith('http')) {
+            redirectUrl = `https://${redirectUrl}`;
+          }
+          console.log(`[URL Normalization] Following redirect (from error) to: ${redirectUrl}`);
+          // Recursively resolve - continue following redirects until we reach vrbo.com
+          const resolvedUrl = await normalizeUrl(redirectUrl, visited);
+          // If we've reached a vrbo.com URL, return it; otherwise continue following
+          if (resolvedUrl.includes('vrbo.com')) {
+            return resolvedUrl;
+          }
+          // If not vrbo.com yet, continue following redirects
+          return await normalizeUrl(resolvedUrl, visited);
+        }
+        // If it's not a redirect error, try with redirects enabled
+        try {
+          const response = await axios.get(url, {
+            maxRedirects: 5,
+            validateStatus: () => true,
+            timeout: 10000
+          });
+          
+          // Check various places for the final URL
+          let finalUrl = url;
+          
+          // Check response.request.res.responseUrl (final URL after redirects)
+          if (response.request?.res?.responseUrl) {
+            finalUrl = response.request.res.responseUrl;
+          }
+          // Check response.request.path (final path after redirects)
+          else if (response.request?.path && response.request.path !== new URL(url).pathname) {
+            finalUrl = `${response.request.protocol}//${response.request.host}${response.request.path}`;
+          }
+          // Check response.config.url (might be updated after redirects)
+          else if (response.config?.url && response.config.url !== url) {
+            finalUrl = response.config.url;
+          }
+          
+          if (finalUrl !== url) {
+            console.log(`[URL Normalization] Resolved to: ${finalUrl}`);
+            // If we've reached a vrbo.com URL, return it
+            if (finalUrl.includes('vrbo.com')) {
+              return finalUrl;
+            }
+            // Otherwise, continue following redirects
+            return await normalizeUrl(finalUrl, visited);
+          }
+        } catch (err) {
+          throw redirectError; // Re-throw original error if fallback also fails
+        }
+      }
+    } catch (error) {
+      console.error(`[URL Normalization] Failed to resolve VRBO short link: ${error.message}`);
+      // Return original URL if redirect resolution fails
+      return url;
+    }
+  }
+  
+  // Handle VRBO mobile app links
+  if (url.startsWith('vrbo://')) {
+    // Extract property ID and parameters from mobile link
+    // Format: vrbo://property/{id}?params or vrbo://{id}?params
+    const propertyMatch = url.match(/vrbo:\/\/(?:property\/)?(\d+)/);
+    if (propertyMatch) {
+      const propertyId = propertyMatch[1];
+      // Extract query parameters if present
+      const paramsMatch = url.match(/\?(.+)$/);
+      const params = paramsMatch ? `?${paramsMatch[1]}` : '';
+      return `https://www.vrbo.com/${propertyId}${params}`;
+    }
+  }
+  
+  // Handle Airbnb mobile app links
+  if (url.startsWith('airbnb://')) {
+    // Extract room ID and parameters from mobile link
+    // Format: airbnb://rooms/{id}?params or airbnb://{id}?params
+    const roomMatch = url.match(/airbnb:\/\/(?:rooms\/)?(\d+)/);
+    if (roomMatch) {
+      const roomId = roomMatch[1];
+      // Extract query parameters if present
+      const paramsMatch = url.match(/\?(.+)$/);
+      const params = paramsMatch ? `?${paramsMatch[1]}` : '';
+      return `https://www.airbnb.com/rooms/${roomId}${params}`;
+    }
+  }
+  
+  // Handle short links (vrbo.com/12345 or airbnb.com/r/12345)
+  if (url.includes('vrbo.com/') && !url.startsWith('http')) {
+    // Add https:// if missing
+    url = `https://${url}`;
+  }
+  
+  if (url.includes('airbnb.com/') && !url.startsWith('http')) {
+    // Add https:// if missing
+    url = `https://${url}`;
+    // Convert short links (airbnb.com/r/12345) to full format
+    url = url.replace(/airbnb\.com\/r\/(\d+)/, 'airbnb.com/rooms/$1');
+  }
+  
+  // If it's already a web URL, return as-is
+  return url;
+}
+
 export async function scrapeRental(url) {
   // Firecrawl API key is required
   const firecrawlApiKey = process.env.FIRECRAWL_API_KEY;
@@ -11,8 +163,11 @@ export async function scrapeRental(url) {
     throw new Error('FIRECRAWL_API_KEY environment variable is required');
   }
 
+  // Normalize mobile app links to web URLs (follows redirects for short links)
+  const normalizedUrl = await normalizeUrl(url);
+
   try {
-    const result = await scrapeWithFirecrawl(url, firecrawlApiKey);
+    const result = await scrapeWithFirecrawl(normalizedUrl, firecrawlApiKey);
     if (result && (result.title || result.description || result.images?.length > 0)) {
       return result;
     }
