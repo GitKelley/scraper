@@ -20,12 +20,11 @@ export async function sendToZapier(rentalData) {
       url: rentalData.url,
       source: rentalData.source,
       description: rentalData.description || '',
-      pricePerNight: rentalData.pricePerNight || null,
+      price: rentalData.price || null,
       bedrooms: rentalData.bedrooms || null,
       bathrooms: rentalData.bathrooms || null,
-      guests: rentalData.guests || null,
+      sleeps: rentalData.sleeps || null,
       location: rentalData.location || '',
-      rating: rentalData.rating || null,
       images: rentalData.images || rentalData.imageUrls || [],
       scrapedAt: rentalData.scrapedAt,
       // Additional fields for New Year's trip
@@ -33,16 +32,12 @@ export async function sendToZapier(rentalData) {
       submittedAt: new Date().toISOString()
     };
 
-    console.log('Sending to Zapier:', JSON.stringify(payload, null, 2));
-
     const response = await axios.post(webhookUrl, payload, {
       headers: {
         'Content-Type': 'application/json'
       },
       timeout: 30000
     });
-
-    console.log('Zapier response:', response.status, response.data);
 
     return {
       success: true,

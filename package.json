@@ -6,16 +6,12 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
-    "dev:headed": "cross-env HEADED=true node --watch server.js",
-    "start:headed": "cross-env HEADED=true node server.js",
-    "install-browsers": "npx playwright install chromium",
-    "postinstall": "npx playwright install chromium"
+    "dev": "node --watch server.js"
   },
   "keywords": [
     "rental",
     "scraper",
-    "playwright",
+    "firecrawl",
     "zapier",
     "notion"
   ],
@@ -24,11 +20,9 @@
   "dependencies": {
     "axios": "^1.7.9",
     "cors": "^2.8.5",
-    "cross-env": "^7.0.3",
     "dotenv": "^16.4.7",
     "express": "^4.18.2",
-    "formidable": "^3.5.1",
-    "playwright": "^1.48.0"
+    "formidable": "^3.5.1"
   },
   "engines": {
     "node": ">=18.0.0"

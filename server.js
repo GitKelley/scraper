@@ -35,11 +35,8 @@ app.post('/api/scrape-rental', async (req, res) => {
       return res.status(400).json({ error: 'Invalid URL format' });
     }
 
-    console.log(`[${new Date().toISOString()}] Scraping rental from: ${url}`);
-
     // Scrape the rental data
     const rentalData = await scrapeRental(url);
-    console.log(`[${new Date().toISOString()}] Scraping completed, preparing response...`);
 
     if (!rentalData) {
       return res.status(500).json({
@@ -56,19 +53,16 @@ app.post('/api/scrape-rental', async (req, res) => {
       url: rentalData.url,
       source: rentalData.source,
       description: rentalData.description,
-      pricePerNight: rentalData.pricePerNight,
+      price: rentalData.price,
       bedrooms: rentalData.bedrooms,
       bathrooms: rentalData.bathrooms,
       sleeps: rentalData.sleeps,
       location: rentalData.location,
-      rating: rentalData.rating,
       images: rentalData.images || rentalData.imageUrls || [],
       scrapedAt: rentalData.scrapedAt,
       tripType: 'New Years Trip'
     };
 
-    console.log(`[${new Date().toISOString()}] Scraping completed successfully`);
-    console.log(`[${new Date().toISOString()}] Response JSON:`, JSON.stringify(result, null, 2));
     res.json(result);
 
   } catch (error) {

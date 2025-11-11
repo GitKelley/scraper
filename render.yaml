@@ -1,15 +1,13 @@
 services:
   - type: web
     name: scraper
-    env: docker
-    dockerfilePath: ./Dockerfile
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: HEADED
-        value: "true"
-      - key: DISPLAY
-        value: ":99"
       - key: PORT
         value: "3000"
-
+      - key: FIRECRAWL_API_KEY
+        sync: false  # Set this in Render dashboard
