@@ -207,12 +207,12 @@ export async function scrapeRental(url) {
       // Continue anyway - stealth measures may not be as effective but scraping can still work
     }
     
-    const timeout = process.env.NODE_ENV === 'production' ? 60000 : 10000;
+    const timeout = process.env.NODE_ENV === 'production' ? 20000 : 10000;
     
     console.log(`[${new Date().toISOString()}] Starting page navigation (timeout: ${timeout}ms)...`);
     
-    // Retry logic for production - VRBO can be flaky
-    let retries = process.env.NODE_ENV === 'production' ? 2 : 0;
+    // Retry logic for production - reduced to 1 retry for faster execution
+    let retries = process.env.NODE_ENV === 'production' ? 1 : 0;
     let lastError = null;
     
     while (retries >= 0) {
@@ -221,20 +221,40 @@ export async function scrapeRental(url) {
         // Use 'domcontentloaded' for faster loading, then wait for specific elements
         // This is more reliable than 'load' which waits for ALL resources
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
-        console.log(`[${new Date().toISOString()}] Page.goto completed, waiting for h1 element...`);
+        
+        // Log page state to see what we actually loaded
+        const currentUrl = page.url();
+        const pageTitle = await page.title().catch(() => 'Unable to get title');
+        const bodyExists = await page.locator('body').count().catch(() => 0);
+        const h1Exists = await page.locator('h1').count().catch(() => 0);
+        
+        console.log(`[${new Date().toISOString()}] Page.goto completed`);
+        console.log(`[${new Date().toISOString()}] Current URL: ${currentUrl}`);
+        console.log(`[${new Date().toISOString()}] Page title: ${pageTitle}`);
+        console.log(`[${new Date().toISOString()}] Body elements found: ${bodyExists}`);
+        console.log(`[${new Date().toISOString()}] H1 elements found: ${h1Exists}`);
+        
+        // Log a snippet of the HTML to see what we got
+        try {
+          const htmlContent = await page.content();
+          const htmlSnippet = htmlContent.substring(0, 1000);
+          console.log(`[${new Date().toISOString()}] HTML snippet (first 1000 chars):`, htmlSnippet);
+        } catch (e) {
+          console.log(`[${new Date().toISOString()}] Could not get HTML content: ${e.message}`);
+        }
         
         // Wait for h1 specifically - this is the title and indicates main content is loaded
         try {
-          await page.waitForSelector('h1', { timeout: 20000 });
+          await page.waitForSelector('h1', { timeout: 5000 });
           console.log(`[${new Date().toISOString()}] h1 element found!`);
         } catch (e) {
           console.log(`[${new Date().toISOString()}] h1 not found, trying body as fallback...`);
-          await page.waitForSelector('body', { timeout: 5000 });
+          await page.waitForSelector('body', { timeout: 2000 });
           console.log(`[${new Date().toISOString()}] body element found`);
         }
         
-        // Wait for dynamic content to render - increased to 20 seconds in production
-        const waitTime = process.env.NODE_ENV === 'production' ? 20000 : 10000;
+        // Wait for dynamic content to render - reduced for faster execution
+        const waitTime = process.env.NODE_ENV === 'production' ? 5000 : 3000;
         console.log(`[${new Date().toISOString()}] Waiting ${waitTime}ms for dynamic content to render...`);
         await page.waitForTimeout(waitTime);
         console.log(`[${new Date().toISOString()}] Dynamic content wait complete, page ready for scraping`);
@@ -244,11 +264,31 @@ export async function scrapeRental(url) {
       } catch (error) {
         lastError = error;
         console.log(`[${new Date().toISOString()}] Page load failed: ${error.message}`);
+        
+        // Try to log page state even on error
+        try {
+          const currentUrl = page.url();
+          const pageTitle = await page.title().catch(() => 'Unable to get title');
+          console.log(`[${new Date().toISOString()}] Error state - Current URL: ${currentUrl}`);
+          console.log(`[${new Date().toISOString()}] Error state - Page title: ${pageTitle}`);
+          
+          // Try to get HTML snippet
+          try {
+            const htmlContent = await page.content();
+            const htmlSnippet = htmlContent.substring(0, 1000);
+            console.log(`[${new Date().toISOString()}] Error state - HTML snippet:`, htmlSnippet);
+          } catch (e) {
+            console.log(`[${new Date().toISOString()}] Error state - Could not get HTML: ${e.message}`);
+          }
+        } catch (e) {
+          console.log(`[${new Date().toISOString()}] Could not get page state on error: ${e.message}`);
+        }
+        
         if (retries > 0) {
           console.log(`[${new Date().toISOString()}] Retrying... (${retries} attempts left)`);
           retries--;
-          // Wait a bit before retrying
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Wait a bit before retrying (reduced for faster execution)
+          await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
           // Last attempt failed, throw the error
           console.log(`[${new Date().toISOString()}] All retry attempts exhausted`);
@@ -329,7 +369,7 @@ function getSourceName(hostname) {
  */
 async function scrapeVRBO(page) {
   const data = {};
-  const selectorTimeout = process.env.NODE_ENV === 'production' ? 3000 : 1000;
+  const selectorTimeout = process.env.NODE_ENV === 'production' ? 2000 : 1000;
 
   console.log(`[${new Date().toISOString()}] VRBO: Starting field extraction (selector timeout: ${selectorTimeout}ms)`);
 
