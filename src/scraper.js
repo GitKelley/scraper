@@ -209,37 +209,49 @@ export async function scrapeRental(url) {
     
     const timeout = process.env.NODE_ENV === 'production' ? 60000 : 10000;
     
+    console.log(`[${new Date().toISOString()}] Starting page navigation (timeout: ${timeout}ms)...`);
+    
     // Retry logic for production - VRBO can be flaky
     let retries = process.env.NODE_ENV === 'production' ? 2 : 0;
     let lastError = null;
     
     while (retries >= 0) {
       try {
+        console.log(`[${new Date().toISOString()}] Attempting page.goto (${retries + 1} attempts remaining)...`);
         // Use 'domcontentloaded' for faster loading, then wait for specific elements
         // This is more reliable than 'load' which waits for ALL resources
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+        console.log(`[${new Date().toISOString()}] Page.goto completed, waiting for h1 element...`);
         
-        // Wait for key elements to ensure page content is loaded
-        // This is more reliable than waiting for 'load' which can timeout on slow resources
-        await Promise.race([
-          page.waitForSelector('h1', { timeout: 15000 }).catch(() => null),
-          page.waitForSelector('body', { timeout: 15000 }).catch(() => null),
-        ]);
+        // Wait for h1 specifically - this is the title and indicates main content is loaded
+        try {
+          await page.waitForSelector('h1', { timeout: 20000 });
+          console.log(`[${new Date().toISOString()}] h1 element found!`);
+        } catch (e) {
+          console.log(`[${new Date().toISOString()}] h1 not found, trying body as fallback...`);
+          await page.waitForSelector('body', { timeout: 5000 });
+          console.log(`[${new Date().toISOString()}] body element found`);
+        }
         
-        // Wait for dynamic content to render
-        await page.waitForTimeout(10000);
+        // Wait for dynamic content to render - increased to 20 seconds in production
+        const waitTime = process.env.NODE_ENV === 'production' ? 20000 : 10000;
+        console.log(`[${new Date().toISOString()}] Waiting ${waitTime}ms for dynamic content to render...`);
+        await page.waitForTimeout(waitTime);
+        console.log(`[${new Date().toISOString()}] Dynamic content wait complete, page ready for scraping`);
         
         // Success - break out of retry loop
         break;
       } catch (error) {
         lastError = error;
+        console.log(`[${new Date().toISOString()}] Page load failed: ${error.message}`);
         if (retries > 0) {
-          console.log(`Page load failed, retrying... (${retries} attempts left)`);
+          console.log(`[${new Date().toISOString()}] Retrying... (${retries} attempts left)`);
           retries--;
           // Wait a bit before retrying
           await new Promise(resolve => setTimeout(resolve, 2000));
         } else {
           // Last attempt failed, throw the error
+          console.log(`[${new Date().toISOString()}] All retry attempts exhausted`);
           throw error;
         }
       }
@@ -257,7 +269,19 @@ export async function scrapeRental(url) {
 
     // Try site-specific scrapers first for better accuracy
     if (hostname.includes('vrbo')) {
+      console.log(`[${new Date().toISOString()}] Starting VRBO scraper...`);
       rentalData = { ...rentalData, ...await scrapeVRBO(page) };
+      console.log(`[${new Date().toISOString()}] VRBO scraper completed. Fields found:`, {
+        title: !!rentalData.title,
+        description: !!rentalData.description,
+        price: !!rentalData.pricePerNight,
+        bedrooms: !!rentalData.bedrooms,
+        bathrooms: !!rentalData.bathrooms,
+        sleeps: !!rentalData.sleeps,
+        location: !!rentalData.location,
+        rating: !!rentalData.rating,
+        images: rentalData.images?.length || 0
+      });
     } else if (hostname.includes('booking')) {
       rentalData = { ...rentalData, ...await scrapeBooking(page) };
     } else if (hostname.includes('airbnb')) {
@@ -305,22 +329,32 @@ function getSourceName(hostname) {
  */
 async function scrapeVRBO(page) {
   const data = {};
+  const selectorTimeout = process.env.NODE_ENV === 'production' ? 3000 : 1000;
+
+  console.log(`[${new Date().toISOString()}] VRBO: Starting field extraction (selector timeout: ${selectorTimeout}ms)`);
 
   try {
     // Title - extract from h1 element
+    console.log(`[${new Date().toISOString()}] VRBO: Extracting title...`);
     try {
-      data.title = await page.locator('h1').first().textContent({ timeout: 1000 }).catch(() => null);
+      data.title = await page.locator('h1').first().textContent({ timeout: selectorTimeout }).catch(() => null);
       if (data.title) {
         data.title = data.title.trim();
+        console.log(`[${new Date().toISOString()}] VRBO: Title found: "${data.title.substring(0, 50)}..."`);
+      } else {
+        console.log(`[${new Date().toISOString()}] VRBO: Title not found`);
       }
     } catch (e) {
+      console.log(`[${new Date().toISOString()}] VRBO: Title extraction error: ${e.message}`);
       data.title = null;
     }
 
     // Description - extract from content-markup divs
+    console.log(`[${new Date().toISOString()}] VRBO: Extracting description...`);
     try {
       // Get all description content from content-markup divs
-      const descriptionElements = await page.locator('[data-stid="content-markup"]').all({ timeout: 1000 }).catch(() => []);
+      const descriptionElements = await page.locator('[data-stid="content-markup"]').all({ timeout: selectorTimeout }).catch(() => []);
+      console.log(`[${new Date().toISOString()}] VRBO: Found ${descriptionElements.length} description elements`);
       const descriptionParts = [];
       for (const elem of descriptionElements) {
         const text = await elem.textContent({ timeout: 500 }).catch(() => null);
@@ -332,77 +366,100 @@ async function scrapeVRBO(page) {
       if (data.description && data.description.length > 2000) {
         data.description = data.description.substring(0, 2000) + '...';
       }
+      console.log(`[${new Date().toISOString()}] VRBO: Description ${data.description ? `found (${data.description.length} chars)` : 'not found'}`);
     } catch (e) {
+      console.log(`[${new Date().toISOString()}] VRBO: Description extraction error: ${e.message}`);
       data.description = null;
     }
 
     // Price - extract from price-summary element
+    console.log(`[${new Date().toISOString()}] VRBO: Extracting price...`);
     try {
-      const priceText = await page.locator('[data-test-id="price-summary"] [data-test-id="price-summary-message-line"] .uitk-text-emphasis-theme').first().textContent({ timeout: 1000 }).catch(() => null);
+      const priceText = await page.locator('[data-test-id="price-summary"] [data-test-id="price-summary-message-line"] .uitk-text-emphasis-theme').first().textContent({ timeout: selectorTimeout }).catch(() => null);
       data.pricePerNight = extractPrice(priceText);
+      console.log(`[${new Date().toISOString()}] VRBO: Price ${data.pricePerNight ? `found: ${data.pricePerNight}` : 'not found'}`);
     } catch (e) {
+      console.log(`[${new Date().toISOString()}] VRBO: Price extraction error: ${e.message}`);
       data.pricePerNight = null;
     }
 
     // Bedrooms - extract from title text or page content
+    console.log(`[${new Date().toISOString()}] VRBO: Extracting bedrooms...`);
     try {
       // Try to extract from title first (e.g., "7 Bedroom House")
       const titleText = data.title || '';
       const bedroomsMatch = titleText.match(/(\d+)\s*bedroom/i) || titleText.match(/(\d+)\s*bed/i);
       if (bedroomsMatch) {
         data.bedrooms = parseInt(bedroomsMatch[1], 10);
+        console.log(`[${new Date().toISOString()}] VRBO: Bedrooms found in title: ${data.bedrooms}`);
       } else {
         // Fallback: search page for bedroom text
-        const bedroomsText = await page.locator('text=/\\d+\\s*bedroom/i').first().textContent({ timeout: 1000 }).catch(() => null) ||
-                              await page.locator('text=/\\d+\\s*bed/i').first().textContent({ timeout: 1000 }).catch(() => null);
+        const bedroomsText = await page.locator('text=/\\d+\\s*bedroom/i').first().textContent({ timeout: selectorTimeout }).catch(() => null) ||
+                              await page.locator('text=/\\d+\\s*bed/i').first().textContent({ timeout: selectorTimeout }).catch(() => null);
         data.bedrooms = extractNumber(bedroomsText);
+        console.log(`[${new Date().toISOString()}] VRBO: Bedrooms ${data.bedrooms ? `found: ${data.bedrooms}` : 'not found'}`);
       }
     } catch (e) {
+      console.log(`[${new Date().toISOString()}] VRBO: Bedrooms extraction error: ${e.message}`);
       data.bedrooms = null;
     }
 
     // Bathrooms - extract from title text or page content
+    console.log(`[${new Date().toISOString()}] VRBO: Extracting bathrooms...`);
     try {
       // Try to extract from title first (e.g., "7 Bedroom House 8 Bath")
       const titleText = data.title || '';
       const bathroomsMatch = titleText.match(/(\d+)\s*bathroom/i) || titleText.match(/(\d+)\s*bath/i);
       if (bathroomsMatch) {
         data.bathrooms = parseInt(bathroomsMatch[1], 10);
+        console.log(`[${new Date().toISOString()}] VRBO: Bathrooms found in title: ${data.bathrooms}`);
       } else {
         // Fallback: search page for bathroom text
-        const bathroomsText = await page.locator('text=/\\d+\\s*bathroom/i').first().textContent({ timeout: 1000 }).catch(() => null) ||
-                               await page.locator('text=/\\d+\\s*bath/i').first().textContent({ timeout: 1000 }).catch(() => null);
+        const bathroomsText = await page.locator('text=/\\d+\\s*bathroom/i').first().textContent({ timeout: selectorTimeout }).catch(() => null) ||
+                               await page.locator('text=/\\d+\\s*bath/i').first().textContent({ timeout: selectorTimeout }).catch(() => null);
         data.bathrooms = extractNumber(bathroomsText);
+        console.log(`[${new Date().toISOString()}] VRBO: Bathrooms ${data.bathrooms ? `found: ${data.bathrooms}` : 'not found'}`);
       }
     } catch (e) {
+      console.log(`[${new Date().toISOString()}] VRBO: Bathrooms extraction error: ${e.message}`);
       data.bathrooms = null;
     }
 
     // Sleeps - extract from bedrooms heading span (e.g., "7 bedrooms (sleeps 14)")
+    console.log(`[${new Date().toISOString()}] VRBO: Extracting sleeps...`);
     try {
       // Look for the span inside the h3 heading that contains bedrooms and sleeps
       // Structure: <h3>7 bedrooms <span>(sleeps 14)</span></h3>
-      const sleepsText = await page.locator('h3.uitk-heading-5:has-text("bedroom") span.uitk-text').first().textContent({ timeout: 1000 }).catch(() => null) ||
-                         await page.locator('h3:has-text("bedroom") span:has-text("sleeps")').first().textContent({ timeout: 1000 }).catch(() => null) ||
-                         await page.locator('text=/\\(sleeps\\s+\\d+\\)/i').first().textContent({ timeout: 1000 }).catch(() => null);
+      const sleepsText = await page.locator('h3.uitk-heading-5:has-text("bedroom") span.uitk-text').first().textContent({ timeout: selectorTimeout }).catch(() => null) ||
+                         await page.locator('h3:has-text("bedroom") span:has-text("sleeps")').first().textContent({ timeout: selectorTimeout }).catch(() => null) ||
+                         await page.locator('text=/\\(sleeps\\s+\\d+\\)/i').first().textContent({ timeout: selectorTimeout }).catch(() => null);
       data.sleeps = extractNumber(sleepsText);
+      console.log(`[${new Date().toISOString()}] VRBO: Sleeps ${data.sleeps ? `found: ${data.sleeps}` : 'not found'}`);
     } catch (e) {
+      console.log(`[${new Date().toISOString()}] VRBO: Sleeps extraction error: ${e.message}`);
       data.sleeps = null;
     }
 
     // Location - extract from content-hotel-address
+    console.log(`[${new Date().toISOString()}] VRBO: Extracting location...`);
     try {
-      data.location = await page.locator('[data-stid="content-hotel-address"]').first().textContent({ timeout: 1000 }).catch(() => null);
+      data.location = await page.locator('[data-stid="content-hotel-address"]').first().textContent({ timeout: selectorTimeout }).catch(() => null);
       if (data.location) {
         data.location = data.location.trim();
+        console.log(`[${new Date().toISOString()}] VRBO: Location found: "${data.location}"`);
+      } else {
+        console.log(`[${new Date().toISOString()}] VRBO: Location not found`);
       }
     } catch (e) {
+      console.log(`[${new Date().toISOString()}] VRBO: Location extraction error: ${e.message}`);
       data.location = null;
     }
 
     // Images - extract from media.vrbo.com images
+    console.log(`[${new Date().toISOString()}] VRBO: Extracting images...`);
     try {
-      const imageElements = await page.locator('img[src*="media.vrbo.com"]').all({ timeout: 1000 }).catch(() => []);
+      const imageElements = await page.locator('img[src*="media.vrbo.com"]').all({ timeout: selectorTimeout }).catch(() => []);
+      console.log(`[${new Date().toISOString()}] VRBO: Found ${imageElements.length} image elements`);
       data.images = [];
       const seenUrls = new Set();
       for (let i = 0; i < Math.min(imageElements.length, 15); i++) { // Limit to 15 images
@@ -427,17 +484,24 @@ async function scrapeVRBO(page) {
           // Skip this image
         }
       }
+      console.log(`[${new Date().toISOString()}] VRBO: Extracted ${data.images.length} images`);
     } catch (e) {
+      console.log(`[${new Date().toISOString()}] VRBO: Images extraction error: ${e.message}`);
       data.images = [];
     }
 
     // Rating - extract from badge element
+    console.log(`[${new Date().toISOString()}] VRBO: Extracting rating...`);
     try {
-      const ratingText = await page.locator('.uitk-badge-base-text').first().textContent({ timeout: 1000 }).catch(() => null);
+      const ratingText = await page.locator('.uitk-badge-base-text').first().textContent({ timeout: selectorTimeout }).catch(() => null);
       data.rating = extractRating(ratingText);
+      console.log(`[${new Date().toISOString()}] VRBO: Rating ${data.rating ? `found: ${data.rating}` : 'not found'}`);
     } catch (e) {
+      console.log(`[${new Date().toISOString()}] VRBO: Rating extraction error: ${e.message}`);
       data.rating = null;
     }
+    
+    console.log(`[${new Date().toISOString()}] VRBO: Field extraction complete`);
 
 
 
