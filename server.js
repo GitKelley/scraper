@@ -126,9 +126,6 @@ app.post('/api/lodging-options/:id/vote', async (req, res) => {
     }
     
     const votes = voteOnRental(req.params.id, voteType, userId);
-    if (votes.alreadyVoted) {
-      return res.status(400).json({ error: votes.message || 'You have already voted this way' });
-    }
     res.json({ success: true, votes });
   } catch (error) {
     console.error('Error voting on rental:', error);
@@ -296,9 +293,6 @@ app.post('/api/activities/:id/vote', async (req, res) => {
     }
     
     const votes = voteOnActivity(req.params.id, voteType, userId);
-    if (votes.alreadyVoted) {
-      return res.status(400).json({ error: votes.message || 'You have already voted this way' });
-    }
     res.json({ success: true, votes });
   } catch (error) {
     console.error('Error voting on activity:', error);

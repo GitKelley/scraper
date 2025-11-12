@@ -182,10 +182,12 @@ export function voteOnRental(rentalId, voteType, userId) {
     'SELECT voteType FROM votes WHERE itemId = ? AND itemType = ? AND userId = ?'
   ).get(rentalId, 'rental', userId);
   
-  // If user already voted the same way, don't allow duplicate
+  // If user already voted the same way, remove the vote (toggle off)
   if (existingVote && existingVote.voteType === voteType) {
-    const votes = getVoteCounts(rentalId, 'rental');
-    return { ...votes, alreadyVoted: true, message: 'You have already voted this way' };
+    db.prepare(
+      'DELETE FROM votes WHERE itemId = ? AND itemType = ? AND userId = ?'
+    ).run(rentalId, 'rental', userId);
+    return { ...getVoteCounts(rentalId, 'rental'), removed: true };
   }
   
   // If user previously voted differently, update the vote
@@ -400,10 +402,12 @@ export function voteOnActivity(activityId, voteType, userId) {
     'SELECT voteType FROM votes WHERE itemId = ? AND itemType = ? AND userId = ?'
   ).get(activityId, 'activity', userId);
   
-  // If user already voted the same way, don't allow duplicate
+  // If user already voted the same way, remove the vote (toggle off)
   if (existingVote && existingVote.voteType === voteType) {
-    const votes = getVoteCounts(activityId, 'activity');
-    return { ...votes, alreadyVoted: true, message: 'You have already voted this way' };
+    db.prepare(
+      'DELETE FROM votes WHERE itemId = ? AND itemType = ? AND userId = ?'
+    ).run(activityId, 'activity', userId);
+    return { ...getVoteCounts(activityId, 'activity'), removed: true };
   }
   
   // If user previously voted differently, update the vote

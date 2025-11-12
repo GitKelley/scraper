@@ -126,6 +126,10 @@ function App() {
       
       if (response.ok) {
         const voteData = await response.json();
+        const newUpvotes = voteData.votes?.upvotes ?? 0;
+        const newDownvotes = voteData.votes?.downvotes ?? 0;
+        const newNetVotes = newUpvotes - newDownvotes;
+        
         // Optimistically update voting results if on votes tab
         if (activeTab === 'votes') {
           setVotingResults(prev => {
@@ -133,9 +137,9 @@ function App() {
               if (item.id === rentalId) {
                 return {
                   ...item,
-                  upvotes: voteData.votes?.upvotes ?? item.upvotes,
-                  downvotes: voteData.votes?.downvotes ?? item.downvotes,
-                  netVotes: (voteData.votes?.upvotes ?? item.upvotes) - (voteData.votes?.downvotes ?? item.downvotes)
+                  upvotes: newUpvotes,
+                  downvotes: newDownvotes,
+                  netVotes: newNetVotes
                 };
               }
               return item;
@@ -146,18 +150,28 @@ function App() {
             });
           });
         }
-        // Refresh data
-        await fetchLodgingOptions();
-        if (activeTab === 'votes') {
-          fetchVotingResults();
-        }
+        
+        // Update lodging options list without full refresh
+        setLodgingOptions(prev => {
+          return prev.map(item => {
+            if (item.id === rentalId) {
+              return {
+                ...item,
+                upvotes: newUpvotes,
+                downvotes: newDownvotes
+              };
+            }
+            return item;
+          });
+        });
+        
         // Update selected rental if it's the one being voted on
         if (selectedRental && selectedRental.id === rentalId) {
-          const updatedRentals = await fetch(`${API_BASE_URL}/api/lodging-options`).then(r => r.json());
-          const updatedRental = updatedRentals.find(r => r.id === rentalId);
-          if (updatedRental) {
-            setSelectedRental(updatedRental);
-          }
+          setSelectedRental(prev => ({
+            ...prev,
+            upvotes: newUpvotes,
+            downvotes: newDownvotes
+          }));
         }
         return true;
       } else {
@@ -186,15 +200,36 @@ function App() {
       });
       
       if (response.ok) {
-        // Refresh data
-        await fetchActivities();
+        const voteData = await response.json();
+        const newUpvotes = voteData.votes?.upvotes ?? 0;
+        const newDownvotes = voteData.votes?.downvotes ?? 0;
+        
+        // Update activities list without full refresh
+        setActivities(prev => {
+          return prev.map(item => {
+            if (item.id === activityId) {
+              return {
+                ...item,
+                upvotes: newUpvotes,
+                downvotes: newDownvotes
+              };
+            }
+            return item;
+          });
+        });
+        
         // Update selected activity if it's the one being voted on
         if (selectedActivity && selectedActivity.id === activityId) {
-          const updatedActivities = await fetch(`${API_BASE_URL}/api/activities`).then(r => r.json());
-          const updatedActivity = updatedActivities.find(a => a.id === activityId);
-          if (updatedActivity) {
-            setSelectedActivity(updatedActivity);
-          }
+          setSelectedActivity(prev => ({
+            ...prev,
+            upvotes: newUpvotes,
+            downvotes: newDownvotes
+          }));
+        }
+        
+        // Update voting results if on votes tab
+        if (activeTab === 'votes') {
+          fetchVotingResults();
         }
         return true;
       } else {
