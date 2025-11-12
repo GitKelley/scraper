@@ -1,4 +1,5 @@
 import axios from 'axios';
+import Firecrawl from '@mendable/firecrawl-js';
 
 /**
  * Scrapes rental data from any rental website using Firecrawl API
@@ -179,51 +180,284 @@ export async function scrapeRental(url) {
 }
 
 /**
- * Scrape using Firecrawl API (free tier: 300 credits)
+ * Scrape using Firecrawl SDK with stealth mode
  * Get API key from https://firecrawl.dev (free signup)
  * API docs: https://docs.firecrawl.dev
  */
 async function scrapeWithFirecrawl(url, apiKey) {
-  // Firecrawl API endpoint
-  const apiUrl = 'https://api.firecrawl.dev/v0/scrape';
+  // Initialize Firecrawl client
+  const firecrawl = new Firecrawl({ apiKey });
   
-  try {
-    console.log(`[${new Date().toISOString()}] Calling Firecrawl API for: ${url}`);
-    const response = await axios.post(
-      apiUrl,
-      {
-        url: url,
-        pageOptions: {
-          onlyMainContent: false // Get full page content
-        }
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 60000 // 60 second timeout
-      }
-    );
+  // Helper function to get realistic browser headers
+  const getStealthHeaders = () => {
+    // Rotate through realistic user agents
+    const userAgents = [
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
+    ];
+    const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
     
-    console.log(`[${new Date().toISOString()}] Firecrawl response received, status: ${response.status}`);
-    const data = response.data;
+    // Core browser identification headers
+    const browserIdentity = {
+      'User-Agent': randomUserAgent,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.5',
+      'Accept-Encoding': 'gzip, deflate, br'
+    };
     
-    // Firecrawl returns structured data
-    // Map it to our rental data format
+    // Connection and security headers
+    const connectionHeaders = {
+      'DNT': '1',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1'
+    };
+    
+    // Modern browser security headers
+    const securityHeaders = {
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Cache-Control': 'max-age=0'
+    };
+    
+    // Combine all headers
+    return {
+      ...browserIdentity,
+      ...connectionHeaders,
+      ...securityHeaders
+    };
+  };
+  
+  // Helper function to get a random proxy from pool (if configured)
+  const getRandomProxy = () => {
+    const proxyList = process.env.PROXY_LIST;
+    if (!proxyList) {
+      return null;
+    }
+    
+    // Parse proxy list (format: "proxy1:port:user:pass,proxy2:port:user:pass" or "proxy1:port,proxy2:port")
+    const proxies = proxyList.split(',').map(p => p.trim()).filter(p => p);
+    if (proxies.length === 0) {
+      return null;
+    }
+    
+    // Return random proxy from pool
+    const randomProxy = proxies[Math.floor(Math.random() * proxies.length)];
+    console.log(`[${new Date().toISOString()}] Using proxy: ${randomProxy.split(':')[0]}:${randomProxy.split(':')[1]} (rotated)`);
+    
+    // Parse proxy format: "host:port" or "host:port:username:password"
+    const parts = randomProxy.split(':');
+    if (parts.length === 2) {
+      return { host: parts[0], port: parseInt(parts[1], 10) };
+    } else if (parts.length === 4) {
+      return { 
+        host: parts[0], 
+        port: parseInt(parts[1], 10),
+        auth: { username: parts[2], password: parts[3] }
+      };
+    }
+    
+    return null;
+  };
+  
+  // Helper function to add human-like delay
+  const humanDelay = async (baseDelay = 2000) => {
+    // Random delay to mimic human behavior
+    // For Airbnb, use longer delays to avoid detection
     const hostname = new URL(url).hostname.toLowerCase();
+    const delayBase = hostname.includes('airbnb') ? 5000 : baseDelay; // 5-8 seconds for Airbnb
+    const delay = Math.floor(Math.random() * 3000) + delayBase;
+    console.log(`[${new Date().toISOString()}] Adding human-like delay: ${delay}ms`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+  };
+  
+  // Helper function for exponential backoff
+  const exponentialBackoff = async (attempt) => {
+    // Exponential backoff: 5s, 10s, 20s, 40s...
+    const delay = Math.min(5000 * Math.pow(2, attempt), 60000); // Max 60 seconds
+    console.log(`[${new Date().toISOString()}] Exponential backoff: waiting ${delay}ms before retry ${attempt + 1}`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+  };
+  
+  // Helper function to perform the actual scrape
+  const performScrape = async (useStealth = false, useProxy = false) => {
+    // Add human-like delay before making request (especially for Airbnb)
+    const hostname = new URL(url).hostname.toLowerCase();
+    if (hostname.includes('airbnb')) {
+      await humanDelay();
+    }
+    
+    const options = {
+      formats: ['markdown', 'html'],
+      // Page options for v1 API
+      onlyMainContent: false, // Get full page - changed back to false, onlyMainContent might be causing redirects
+      waitFor: hostname.includes('airbnb') ? 10000 : 2000, // Wait even longer for Airbnb (10 seconds) - needs more time for JS to fully load
+      timeout: 30000, // 30 second timeout for Airbnb
+      // Complete browser headers to avoid detection
+      headers: getStealthHeaders()
+    };
+    
+    // Use proxy rotation if enabled and proxy list is configured
+    if (useProxy) {
+      const proxy = getRandomProxy();
+      if (proxy) {
+        // Firecrawl might support proxy configuration - check their docs
+        // For now, we'll use stealth mode which uses their proxy infrastructure
+        // If Firecrawl supports custom proxy URLs, we can add it here
+        options.proxy = 'stealth'; // Use stealth as fallback
+        console.log(`[${new Date().toISOString()}] Proxy rotation enabled, using stealth proxy`);
+      }
+    }
+    
+    if (useStealth) {
+      options.proxy = 'stealth';
+    }
+    
+    return await firecrawl.scrapeUrl(url, options);
+  };
+  
+  // Check if this is an Airbnb link - use stealth and proxy rotation from the start
+  const hostname = new URL(url).hostname.toLowerCase();
+  const isAirbnb = hostname.includes('airbnb');
+  const useStealthFirst = isAirbnb; // Use stealth mode from start for Airbnb
+  const useProxyRotation = process.env.ENABLE_PROXY_ROTATION === 'true' || isAirbnb; // Enable proxy rotation for Airbnb or if explicitly enabled
+  
+  // Retry logic with exponential backoff
+  const maxRetries = 3;
+  let lastError = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        // Add exponential backoff between retries
+        await exponentialBackoff(attempt - 1);
+      }
+      
+      if (useStealthFirst) {
+        console.log(`[${new Date().toISOString()}] Calling Firecrawl API for: ${url} (stealth proxy + IP rotation - Airbnb detected) [Attempt ${attempt + 1}/${maxRetries + 1}]`);
+        // Start with stealth and proxy rotation for Airbnb
+        let scrapeResponse = await performScrape(true, useProxyRotation);
+        console.log(`[${new Date().toISOString()}] Firecrawl response received (stealth proxy + IP rotation)`);
+        let data = scrapeResponse;
+        
+        // Process the data
+        return processFirecrawlData(data, url, hostname);
+      } else {
+        if (attempt === 0) {
+          console.log(`[${new Date().toISOString()}] Calling Firecrawl API for: ${url} (default proxy) [Attempt ${attempt + 1}/${maxRetries + 1}]`);
+          // First try with default proxy
+          let scrapeResponse = await performScrape(false, false);
+          
+          console.log(`[${new Date().toISOString()}] Firecrawl response received`);
+          let data = scrapeResponse;
+          
+          // Check if we got an error status code
+          const statusCode = data?.metadata?.statusCode || data?.data?.metadata?.statusCode;
+          if ([401, 403, 500].includes(statusCode)) {
+            console.log(`[${new Date().toISOString()}] Got status code ${statusCode}, will retry with stealth proxy + IP rotation`);
+            // Continue to retry logic below
+            throw new Error(`Status code ${statusCode} received`);
+          }
+          
+          // Process the data
+          return processFirecrawlData(data, url, hostname);
+        } else {
+          // Retry with stealth proxy and IP rotation
+          console.log(`[${new Date().toISOString()}] Retrying with stealth proxy + IP rotation [Attempt ${attempt + 1}/${maxRetries + 1}]`);
+          let scrapeResponse = await performScrape(true, true);
+          let data = scrapeResponse;
+          console.log(`[${new Date().toISOString()}] Firecrawl response received (stealth proxy + IP rotation)`);
+          
+          // Process the data
+          return processFirecrawlData(data, url, hostname);
+        }
+      }
+    } catch (error) {
+      lastError = error;
+      
+      // Check if error message contains status code info
+      const errorMessage = error.message || '';
+      const statusMatch = errorMessage.match(/status code:?\s*(\d+)/i);
+      const statusCode = statusMatch ? parseInt(statusMatch[1], 10) : null;
+      
+      // If we've exhausted retries, log as error and throw
+      if (attempt === maxRetries) {
+        console.error(`[${new Date().toISOString()}] All ${maxRetries + 1} attempts failed: ${error.message}`);
+        throw error;
+      }
+      
+      // During retries, log as warning (not error) since we're still trying
+      // Retry even for "not currently supported" errors - sometimes retrying with different IP/proxy helps
+      console.warn(`[${new Date().toISOString()}] Attempt ${attempt + 1} failed, retrying... (${error.message})`);
+    }
+  }
+  
+  // Should never reach here, but just in case
+  throw lastError || new Error('Failed to scrape after all retries');
+}
+
+/**
+ * Process Firecrawl response data into rental data format
+ */
+function processFirecrawlData(data, url, hostname) {
+  // Firecrawl returns structured data
+  // Map it to our rental data format
     let rentalData = {
       url: url,
       source: getSourceName(hostname),
       scrapedAt: new Date().toISOString()
     };
     
-    // Extract data from Firecrawl response
+    // Firecrawl SDK returns data directly or in data.data structure
+    // Handle both response formats
+    let pageData;
     if (data.data) {
-      const pageData = data.data;
+      pageData = data.data;
+    } else if (data.markdown || data.metadata) {
+      pageData = data;
+    } else {
+      throw new Error('Invalid Firecrawl response format');
+    }
     
-    // Title from metadata
-    rentalData.title = pageData.metadata?.title || pageData.metadata?.name || null;
+    // Extract data from Firecrawl response
+    if (pageData) {
+    
+    // Log markdown for debugging (first 1000 chars)
+    if (pageData.markdown) {
+      console.log(`[${new Date().toISOString()}] Markdown preview (first 1000 chars):`, pageData.markdown.substring(0, 1000));
+      // Check if we got redirected to homepage
+      if (pageData.markdown.includes('[Airbnb homepage]') || pageData.markdown.includes('Airbnb: Vacation Rentals')) {
+        console.warn(`[${new Date().toISOString()}] WARNING: Appears to have been redirected to Airbnb homepage instead of listing page`);
+        console.warn(`[${new Date().toISOString()}] This suggests Airbnb is blocking or redirecting Firecrawl`);
+      }
+    }
+    
+    // Title from metadata (but this might be generic page title)
+    let titleFromMetadata = pageData.metadata?.title || pageData.metadata?.name || null;
+    
+    // For Airbnb, try to extract title from markdown first (more reliable)
+    if (hostname.includes('airbnb') && pageData.markdown) {
+      // Look for the actual listing title in markdown - usually the first # heading that's not "Airbnb:"
+      const titleMatch = pageData.markdown.match(/^#\s+(.+?)$/m);
+      if (titleMatch && !titleMatch[1].includes('Airbnb:') && !titleMatch[1].includes('Vacation Rentals')) {
+        rentalData.title = titleMatch[1].trim();
+        console.log(`[${new Date().toISOString()}] Extracted title from markdown: ${rentalData.title}`);
+      } else {
+        // Try to find title in h1 or first major heading
+        const h1Match = pageData.markdown.match(/^#\s+(.+?)$/m);
+        if (h1Match) {
+          rentalData.title = h1Match[1].trim();
+        } else {
+          rentalData.title = titleFromMetadata;
+        }
+      }
+    } else {
+      rentalData.title = titleFromMetadata;
+    }
     
     // Description - skip extraction for Airbnb (markdown structure is too complex)
     rentalData.description = null;
@@ -303,6 +537,13 @@ async function scrapeWithFirecrawl(url, apiKey) {
     // Parse markdown to extract additional data
     if (pageData.markdown) {
       const markdownData = parseMarkdown(pageData.markdown, hostname, url);
+      
+      // Use title from parser if it found a better one (not generic Airbnb title)
+      if (markdownData.title && !markdownData.title.includes('Airbnb:') && !markdownData.title.includes('Vacation Rentals')) {
+        rentalData.title = markdownData.title;
+        console.log(`[${new Date().toISOString()}] Using title from parser: ${rentalData.title}`);
+      }
+      
       // Only use markdown price if we didn't get it from URL
       if (!rentalData.price && markdownData.price) {
         rentalData.price = markdownData.price;
@@ -313,10 +554,15 @@ async function scrapeWithFirecrawl(url, apiKey) {
       }
       // Merge markdown data, but preserve price from URL if we have it
       const savedPrice = rentalData.price;
+      const savedTitle = rentalData.title; // Preserve title we extracted
       const savedDescription = rentalData.description; // Preserve description (null for Airbnb)
       rentalData = { ...rentalData, ...markdownData };
       if (savedPrice) {
         rentalData.price = savedPrice;
+      }
+      // Preserve title if we found a good one
+      if (savedTitle && !savedTitle.includes('Airbnb:') && !savedTitle.includes('Vacation Rentals')) {
+        rentalData.title = savedTitle;
       }
       // Preserve null description for Airbnb
       if (hostname.includes('airbnb')) {
@@ -333,28 +579,6 @@ async function scrapeWithFirecrawl(url, apiKey) {
   }
   
   return rentalData;
-  } catch (error) {
-    // Log detailed error information
-    console.error(`[${new Date().toISOString()}] Firecrawl API error details:`);
-    console.error(`  URL: ${url}`);
-    console.error(`  Error message: ${error.message}`);
-    if (error.response) {
-      console.error(`  Status: ${error.response.status}`);
-      console.error(`  Status text: ${error.response.statusText}`);
-      console.error(`  Response data:`, JSON.stringify(error.response.data, null, 2));
-    } else if (error.request) {
-      console.error(`  Request made but no response received`);
-      console.error(`  Request config:`, JSON.stringify({
-        url: error.config?.url,
-        method: error.config?.method,
-        timeout: error.config?.timeout
-      }, null, 2));
-    }
-    if (error.code) {
-      console.error(`  Error code: ${error.code}`);
-    }
-    throw error;
-  }
 }
 
 /**
@@ -599,6 +823,24 @@ const AirbnbParser = {
 
   parse(markdown, url) {
     const data = {};
+    
+    // Extract title from markdown - look for the actual listing title
+    // Skip generic "Airbnb:" titles
+    const titleMatch = markdown.match(/^#\s+(.+?)$/m);
+    if (titleMatch && !titleMatch[1].includes('Airbnb:') && !titleMatch[1].includes('Vacation Rentals')) {
+      data.title = titleMatch[1].trim();
+      console.log(`[${new Date().toISOString()}] AirbnbParser: Extracted title from markdown: ${data.title}`);
+    } else {
+      // Try to find title in the first few lines
+      const lines = markdown.split('\n').slice(0, 20);
+      for (const line of lines) {
+        if (line.trim().startsWith('#') && !line.includes('Airbnb:') && !line.includes('Vacation Rentals')) {
+          data.title = line.replace(/^#+\s*/, '').trim();
+          console.log(`[${new Date().toISOString()}] AirbnbParser: Found title in markdown: ${data.title}`);
+          break;
+        }
+      }
+    }
     
     // Note: Description extraction skipped for Airbnb - use default extraction from main scraper
     

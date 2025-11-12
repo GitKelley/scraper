@@ -1,0 +1,112 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Modern dark theme with vibrant accents */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #141414;
+  --bg-tertiary: #1a1a1a;
+  --bg-sidebar: #0f0f0f;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #6b6b6b;
+  --text-light: #ffffff;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-color-hover: rgba(255, 255, 255, 0.2);
+  
+  /* Modern gradient accents */
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-pink: #ec4899;
+  --accent-orange: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-green: #10b981;
+  
+  /* Gradient combinations */
+  --gradient-primary: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+  --gradient-secondary: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+  --gradient-accent: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+  
+  /* Modern shadows and effects */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.3);
+  --shadow-glow-hover: 0 0 30px rgba(59, 130, 246, 0.5);
+  
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-blur: blur(10px);
+  
+  /* Hover states */
+  --hover-bg: rgba(255, 255, 255, 0.05);
+  --hover-bg-strong: rgba(255, 255, 255, 0.1);
+  
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.3s ease;
+  --transition-slow: 0.5s ease;
+}
+
+/* Light mode */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f1f3f5;
+  --bg-sidebar: #f8f9fa;
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --text-light: #ffffff;
+  --border-color: rgba(0, 0, 0, 0.1);
+  --border-color-hover: rgba(0, 0, 0, 0.2);
+  
+  /* Glassmorphism for light mode */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  
+  /* Shadows for light mode */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+  --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.2);
+  --shadow-glow-hover: 0 0 30px rgba(59, 130, 246, 0.3);
+  
+  /* Hover states for light mode */
+  --hover-bg: rgba(0, 0, 0, 0.05);
+  --hover-bg-strong: rgba(0, 0, 0, 0.1);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Inter', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--bg-primary);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  line-height: 1.6;
+  font-weight: 400;
+  transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+[data-theme="light"] body {
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
+}
+
+#root {
+  min-height: 100vh;
+}
+

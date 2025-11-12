@@ -1,0 +1,81 @@
+.lodging-grid-container {
+  width: 100%;
+}
+
+.lodging-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+  padding: 12px 0;
+}
+
+.loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+.empty-state {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-state p {
+  font-size: 16px;
+  margin-bottom: 24px;
+}
+
+.new-page-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 240px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 2px dashed var(--glass-border);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  padding: 32px;
+  box-shadow: var(--shadow-md);
+}
+
+.new-page-button:hover {
+  border-color: var(--accent-blue);
+  background: var(--hover-bg-strong);
+  color: var(--accent-blue);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  border-style: solid;
+}
+
+.new-page-icon {
+  font-size: 32px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+@media (max-width: 768px) {
+  .lodging-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .new-page-button {
+    min-height: 150px;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .lodging-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+}
+

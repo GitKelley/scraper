@@ -1,0 +1,58 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-content {
+  display: flex;
+  flex: 1;
+  gap: 32px;
+  padding: 32px;
+  max-width: 1600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-content.full-width {
+  max-width: 100%;
+  padding: 0;
+}
+
+.app-content.full-width .main-content.full-width {
+  width: 100%;
+}
+
+.tab-content {
+  padding: 24px 0;
+}
+
+.tab-content h2 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .app-content {
+    flex-direction: column;
+    padding: 16px;
+    gap: 16px;
+  }
+  
+  .main-content {
+    order: 1;
+  }
+  
+  .sidebar {
+    order: 2;
+  }
+}
+

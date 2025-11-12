@@ -1,0 +1,126 @@
+.voting-results {
+  padding: 8px 0;
+}
+
+.voting-results-header {
+  margin-bottom: 24px;
+}
+
+.voting-results-header h2 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.results-count {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.voting-results-empty {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+.voting-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.voting-result-item {
+  position: relative;
+  transition: all var(--transition-base);
+}
+
+.voting-result-item:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+
+.voting-result-item:hover .lodging-card {
+  transform: none; /* Prevent card's own hover transform from compounding */
+  box-shadow: var(--shadow-xl), var(--shadow-glow);
+  border-color: var(--border-color-hover);
+}
+
+.voting-result-item:hover .vote-summary {
+  box-shadow: var(--shadow-xl), var(--shadow-glow);
+  border-color: var(--border-color-hover);
+}
+
+.vote-summary {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 0 0 16px 16px;
+  margin-top: -8px;
+  border-top: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-base);
+}
+
+.vote-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.vote-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.upvote-stat {
+  color: var(--accent-green);
+}
+
+.downvote-stat {
+  color: #dc3545;
+}
+
+.net-vote-stat {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.net-vote-stat .vote-label {
+  color: var(--text-secondary);
+}
+
+.net-vote-stat .vote-count.positive {
+  color: var(--accent-green);
+}
+
+.net-vote-stat .vote-count.negative {
+  color: #dc3545;
+}
+
+.vote-count {
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .voting-results-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .vote-summary {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .net-vote-stat {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+

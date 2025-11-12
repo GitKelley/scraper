@@ -5,4 +5,6 @@ node_modules/
 downloads/
 temp/
 .railway/
+# Database file (created on server, don't commit)
+data.db
 
