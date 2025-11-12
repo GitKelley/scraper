@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "build": "cd frontend && npm install && npm run build",
+    "render-build": "npm install && cd frontend && npm install && npm run build"
   },
   "keywords": [
     "rental",
