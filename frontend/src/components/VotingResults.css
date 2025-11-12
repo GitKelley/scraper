@@ -29,82 +29,22 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 24px;
+  align-items: stretch;
 }
 
-.voting-result-item {
-  position: relative;
-  transition: all var(--transition-base);
+/* Voting results grid uses standard card animations */
+.voting-results-grid .lodging-card {
+  height: 100%;
+  animation-delay: 0s; /* Reset delay for consistent animation */
 }
 
-.voting-result-item:hover {
-  transform: translateY(-4px) scale(1.02);
-}
-
-.voting-result-item:hover .lodging-card {
-  transform: none; /* Prevent card's own hover transform from compounding */
-  box-shadow: var(--shadow-xl), var(--shadow-glow);
-  border-color: var(--border-color-hover);
-}
-
-.voting-result-item:hover .vote-summary {
-  box-shadow: var(--shadow-xl), var(--shadow-glow);
-  border-color: var(--border-color-hover);
-}
-
-.vote-summary {
-  display: flex;
-  gap: 16px;
-  padding: 16px;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: 0 0 16px 16px;
-  margin-top: -8px;
-  border-top: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-md);
-  transition: all var(--transition-base);
-}
-
-.vote-stat {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-}
-
-.vote-icon {
-  font-size: 18px;
-  line-height: 1;
-}
-
-.upvote-stat {
-  color: var(--accent-green);
-}
-
-.downvote-stat {
-  color: #dc3545;
-}
-
-.net-vote-stat {
-  margin-left: auto;
-  font-weight: 600;
-}
-
-.net-vote-stat .vote-label {
-  color: var(--text-secondary);
-}
-
-.net-vote-stat .vote-count.positive {
-  color: var(--accent-green);
-}
-
-.net-vote-stat .vote-count.negative {
-  color: #dc3545;
-}
-
-.vote-count {
-  font-weight: 600;
-}
+.voting-results-grid .lodging-card:nth-child(1) { animation-delay: 0.05s; }
+.voting-results-grid .lodging-card:nth-child(2) { animation-delay: 0.1s; }
+.voting-results-grid .lodging-card:nth-child(3) { animation-delay: 0.15s; }
+.voting-results-grid .lodging-card:nth-child(4) { animation-delay: 0.2s; }
+.voting-results-grid .lodging-card:nth-child(5) { animation-delay: 0.25s; }
+.voting-results-grid .lodging-card:nth-child(6) { animation-delay: 0.3s; }
+.voting-results-grid .lodging-card:nth-child(n+7) { animation-delay: 0.35s; }
 
 @media (max-width: 768px) {
   .voting-results-grid {
@@ -112,12 +52,16 @@
     gap: 16px;
   }
   
-  .vote-summary {
-    flex-wrap: wrap;
-    gap: 12px;
+  .card-vote-bar-container {
+    height: 6px;
   }
   
-  .net-vote-stat {
+  .card-vote-stats {
+    flex-wrap: wrap;
+    gap: var(--spacing-3);
+  }
+  
+  .card-net-vote-stat {
     margin-left: 0;
     width: 100%;
     justify-content: space-between;

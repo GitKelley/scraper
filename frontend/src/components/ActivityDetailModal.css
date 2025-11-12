@@ -41,7 +41,7 @@
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   border-radius: 24px;
-  max-width: 1000px;
+  max-width: 800px;
   width: 100%;
   max-height: 90vh;
   overflow: hidden;
@@ -710,6 +710,18 @@
   .view-original-btn {
     width: 100%;
     text-align: center;
+  }
+  
+  .modal-content {
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 95vh;
+    margin-top: auto;
+  }
+  
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
   }
 }
 

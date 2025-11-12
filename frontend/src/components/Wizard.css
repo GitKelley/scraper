@@ -1,0 +1,223 @@
+.wizard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.wizard-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-6) var(--spacing-4);
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--bg-secondary);
+  gap: var(--spacing-2);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wizard-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 80px;
+  position: relative;
+}
+
+.wizard-step-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  background: var(--bg-tertiary);
+  border: 2px solid var(--glass-border);
+  color: var(--text-secondary);
+  transition: all var(--transition-base);
+  flex-shrink: 0;
+}
+
+.wizard-step.active .wizard-step-number {
+  background: var(--gradient-primary);
+  border-color: transparent;
+  color: white;
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+  transform: scale(1.1);
+}
+
+.wizard-step.completed .wizard-step-number {
+  background: var(--accent-green);
+  border-color: transparent;
+  color: white;
+}
+
+.wizard-step-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-align: center;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.wizard-step.active .wizard-step-label {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.wizard-step.completed .wizard-step-label {
+  color: var(--accent-green);
+}
+
+.wizard-step-line {
+  flex: 1;
+  height: 2px;
+  background: var(--glass-border);
+  min-width: 40px;
+  max-width: 100px;
+  transition: all var(--transition-base);
+}
+
+.wizard-step-line.completed {
+  background: var(--accent-green);
+}
+
+.wizard-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-6) var(--spacing-4);
+  min-height: 0;
+}
+
+.wizard-step-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.wizard-step-title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-2);
+}
+
+.wizard-step-description {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-6);
+}
+
+.wizard-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-4);
+  border-top: 1px solid var(--glass-border);
+  background: var(--bg-secondary);
+  gap: var(--spacing-4);
+}
+
+.wizard-step-indicator {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.wizard-button {
+  padding: var(--spacing-3) var(--spacing-5);
+  border-radius: 10px;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  border: none;
+  min-height: 44px;
+  min-width: 100px;
+}
+
+.wizard-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wizard-button-primary {
+  background: var(--gradient-primary);
+  color: white;
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+}
+
+.wizard-button-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg), var(--shadow-glow-hover);
+  filter: brightness(1.1);
+}
+
+.wizard-button-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.wizard-button-secondary {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+}
+
+.wizard-button-secondary:hover:not(:disabled) {
+  background: var(--hover-bg);
+  border-color: var(--border-color-hover);
+}
+
+.wizard-button-secondary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+@media (max-width: 768px) {
+  .wizard-progress {
+    padding: var(--spacing-4) var(--spacing-2);
+    gap: var(--spacing-1);
+  }
+
+  .wizard-step {
+    min-width: 60px;
+  }
+
+  .wizard-step-number {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .wizard-step-label {
+    font-size: 10px;
+  }
+
+  .wizard-step-line {
+    min-width: 20px;
+    max-width: 40px;
+  }
+
+  .wizard-content {
+    padding: var(--spacing-4) var(--spacing-3);
+  }
+
+  .wizard-navigation {
+    flex-wrap: wrap;
+    gap: var(--spacing-2);
+  }
+
+  .wizard-step-indicator {
+    order: 3;
+    width: 100%;
+    text-align: center;
+  }
+
+  .wizard-button {
+    flex: 1;
+    min-width: 0;
+  }
+}
+

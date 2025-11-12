@@ -12,11 +12,15 @@ import LandingPage from './components/LandingPage';
 import LoginPage from './components/LoginPage';
 import SignUpPage from './components/SignUpPage';
 import Sidebar from './components/Sidebar';
+import FloatingActionButton from './components/FloatingActionButton';
+import ToastContainer from './components/ToastContainer';
+import { useToast } from './hooks/useToast';
 import './App.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 function App() {
+  const { toasts, removeToast, success, error, info } = useToast();
   const [user, setUser] = useState(null);
   const [showLanding, setShowLanding] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
@@ -113,7 +117,7 @@ function App() {
 
   const handleVote = async (rentalId, voteType) => {
     if (!user) {
-      alert('Please sign up to vote');
+      info('Please sign up to vote');
       return false;
     }
 
@@ -173,22 +177,23 @@ function App() {
             downvotes: newDownvotes
           }));
         }
+        // Don't show toast for votes - UI updates optimistically
         return true;
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to vote');
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to vote');
         return false;
       }
-    } catch (error) {
-      console.error('Error voting:', error);
-      alert('Failed to vote. Please try again.');
+    } catch (err) {
+      console.error('Error voting:', err);
+      error('Failed to vote. Please try again.');
       return false;
     }
   };
 
   const handleActivityVote = async (activityId, voteType) => {
     if (!user) {
-      alert('Please sign up to vote');
+      info('Please sign up to vote');
       return false;
     }
 
@@ -231,15 +236,16 @@ function App() {
         if (activeTab === 'votes') {
           fetchVotingResults();
         }
+        // Don't show toast for votes - UI updates optimistically
         return true;
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to vote');
+        const errorData = await response.json();
+        error(errorData.error || 'Failed to vote');
         return false;
       }
-    } catch (error) {
-      console.error('Error voting on activity:', error);
-      alert('Failed to vote. Please try again.');
+    } catch (err) {
+      console.error('Error voting on activity:', err);
+      error('Failed to vote. Please try again.');
       return false;
     }
   };
@@ -316,22 +322,23 @@ function App() {
       
       setShowNewPage(false);
       fetchLodgingOptions();
+      success('Rental added successfully!');
       
       // Open the newly created rental
       if (savedRental) {
         setSelectedRental(savedRental);
       }
-    } catch (error) {
-      console.error('Error saving rental:', error);
-      const errorMessage = error.message || error.toString() || 'Unknown error';
+    } catch (err) {
+      console.error('Error saving rental:', err);
+      const errorMessage = err.message || err.toString() || 'Unknown error';
       
       // Don't show error if it's just a retry in progress (backend handles retries internally)
       // Only show error if it's a final failure
       if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('connection')) {
-        alert(`Connection failed. Please make sure the backend server is running on ${API_BASE_URL}`);
+        error(`Connection failed. Please make sure the backend server is running on ${API_BASE_URL}`);
       } else if (!errorMessage.includes('retrying') && !errorMessage.includes('Attempt')) {
         // Only show error if it's not a retry message
-        alert(`Failed to save rental: ${errorMessage}`);
+        error(`Failed to save rental: ${errorMessage}`);
       }
     }
   };
@@ -349,6 +356,7 @@ function App() {
         const data = await response.json();
         setShowNewActivityPage(false);
         fetchActivities();
+        success('Activity added successfully!');
         
         // Open the newly created activity
         if (data) {
@@ -357,20 +365,20 @@ function App() {
       } else {
         let errorMessage = 'Failed to save activity';
         try {
-          const error = await response.json();
-          errorMessage = error.message || error.error || errorMessage;
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
         } catch (e) {
           errorMessage = `Server error: ${response.status} ${response.statusText}`;
         }
         throw new Error(errorMessage);
       }
-    } catch (error) {
-      console.error('Error saving activity:', error);
-      const errorMessage = error.message || error.toString() || 'Unknown error';
+    } catch (err) {
+      console.error('Error saving activity:', err);
+      const errorMessage = err.message || err.toString() || 'Unknown error';
       if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('connection')) {
-        alert(`Connection failed. Please make sure the backend server is running on ${API_BASE_URL}`);
+        error(`Connection failed. Please make sure the backend server is running on ${API_BASE_URL}`);
       } else {
-        alert(`Failed to save activity: ${errorMessage}`);
+        error(`Failed to save activity: ${errorMessage}`);
       }
     }
   };
@@ -379,12 +387,14 @@ function App() {
     setUser(userData);
     setShowSignUp(false);
     setShowLanding(false);
+    success('Account created successfully!');
   };
 
   const handleLogin = (userData) => {
     setUser(userData);
     setShowLogin(false);
     setShowLanding(false);
+    success('Welcome back!');
   };
 
   const handleSignOut = () => {
@@ -475,6 +485,21 @@ function App() {
         <Sidebar />
       </div>
       
+      {/* Floating Action Button - Mobile optimized */}
+      {user && activeTab !== 'votes' && (
+        <FloatingActionButton
+          onClick={() => {
+            if (activeTab === 'lodging') {
+              setShowNewPage(true);
+            } else if (activeTab === 'activities') {
+              setShowNewActivityPage(true);
+            }
+          }}
+          label={activeTab === 'lodging' ? 'Add Rental' : 'Add Activity'}
+          icon="+"
+        />
+      )}
+      
       {selectedRental && (
         <RentalDetailModal
           rental={selectedRental}
@@ -486,6 +511,7 @@ function App() {
             if (activeTab === 'votes') {
               fetchVotingResults();
             }
+            success('Rental deleted successfully');
           }}
           user={user}
         />
@@ -518,10 +544,13 @@ function App() {
             if (activeTab === 'votes') {
               fetchVotingResults();
             }
+            success('Activity deleted successfully');
           }}
           user={user}
         />
       )}
+      
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }

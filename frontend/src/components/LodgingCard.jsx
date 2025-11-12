@@ -1,7 +1,7 @@
 import React from 'react';
 import './LodgingCard.css';
 
-function LodgingCard({ option, onRentalClick, onVote }) {
+function LodgingCard({ option, onRentalClick, onVote, showVoteDetails = false }) {
   const {
     id,
     title,
@@ -13,8 +13,12 @@ function LodgingCard({ option, onRentalClick, onVote }) {
     sleeps,
     location,
     upvotes = 0,
-    downvotes = 0
+    downvotes = 0,
+    netVotes
   } = option;
+  
+  // Calculate netVotes if not provided
+  const calculatedNetVotes = netVotes !== undefined ? netVotes : (upvotes - downvotes);
 
   // Use first image as cover photo
   const coverImage = images && images.length > 0 ? images[0] : null;
@@ -43,7 +47,7 @@ function LodgingCard({ option, onRentalClick, onVote }) {
           />
         ) : (
           <div className="card-image-placeholder">
-            <span>No Image</span>
+            <span className="sr-only">No image available</span>
           </div>
         )}
         {images && images.length > 1 && (
@@ -87,6 +91,47 @@ function LodgingCard({ option, onRentalClick, onVote }) {
             </button>
           </div>
         </div>
+        
+        {showVoteDetails && (
+          <div className="card-vote-details">
+            <div className="card-vote-visual">
+              <div className="card-vote-bar-container">
+                <div 
+                  className="card-vote-bar card-upvote-bar" 
+                  style={{ 
+                    width: `${upvotes > 0 || downvotes > 0 
+                      ? ((upvotes || 0) / ((upvotes || 0) + (downvotes || 0))) * 100 
+                      : 0}%` 
+                  }}
+                ></div>
+                <div 
+                  className="card-vote-bar card-downvote-bar" 
+                  style={{ 
+                    width: `${upvotes > 0 || downvotes > 0 
+                      ? ((downvotes || 0) / ((upvotes || 0) + (downvotes || 0))) * 100 
+                      : 0}%` 
+                  }}
+                ></div>
+              </div>
+            </div>
+            <div className="card-vote-stats">
+              <div className="card-vote-stat card-upvote-stat">
+                <span className="card-vote-icon">↑</span>
+                <span className="card-vote-count">{upvotes || 0}</span>
+              </div>
+              <div className="card-vote-stat card-downvote-stat">
+                <span className="card-vote-icon">↓</span>
+                <span className="card-vote-count">{downvotes || 0}</span>
+              </div>
+              <div className="card-vote-stat card-net-vote-stat">
+                <span className="card-vote-label">Net:</span>
+                <span className={`card-vote-count ${calculatedNetVotes >= 0 ? 'positive' : 'negative'}`}>
+                  {calculatedNetVotes >= 0 ? '+' : ''}{calculatedNetVotes}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

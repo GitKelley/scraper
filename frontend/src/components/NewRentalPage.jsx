@@ -1,10 +1,12 @@
 import React, { useState, useRef } from 'react';
+import Wizard from './Wizard';
 import './NewRentalPage.css';
 
 function NewRentalPage({ onSave, onCancel, isModal = true }) {
   const [mode, setMode] = useState(null); // null = choice screen, 'import' = import from URL, 'create' = create from scratch
   const [importUrl, setImportUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
     title: '',
     url: '',
@@ -21,6 +23,13 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
   });
   const [imageUrl, setImageUrl] = useState('');
   const fileInputRef = useRef(null);
+
+  const wizardSteps = [
+    { label: 'Basic Info' },
+    { label: 'Details' },
+    { label: 'Pricing & Images' },
+    { label: 'Description' }
+  ];
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -55,7 +64,6 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
           reader.readAsDataURL(file);
         }
       });
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -75,29 +83,21 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
     }));
   };
 
-  // Extract URL from text (handles cases where user pastes text with a link in it)
   const extractUrl = (text) => {
     if (!text || !text.trim()) {
       return null;
     }
     
-    // Regex to match http:// or https:// URLs
     const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
     const matches = text.match(urlRegex);
     
     if (matches && matches.length > 0) {
-      // Return the first valid URL found
-      // Clean up any trailing punctuation that might have been captured
       let url = matches[0];
-      // Remove trailing punctuation that's not part of the URL
       url = url.replace(/[.,;:!?]+$/, '');
-      // Remove trailing closing parentheses/brackets if they're not part of the URL
       url = url.replace(/[)\]}]$/, '');
       return url.trim();
     }
     
-    // If no http/https URL found, check if it's a valid URL format without protocol
-    // This handles cases like "www.vrbo.com/123" or "vrbo.com/123"
     const domainRegex = /(?:www\.)?(?:vrbo|airbnb)\.com\/[^\s<>"{}|\\^`\[\]]+/gi;
     const domainMatches = text.match(domainRegex);
     
@@ -105,7 +105,6 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
       let url = domainMatches[0];
       url = url.replace(/[.,;:!?]+$/, '');
       url = url.replace(/[)\]}]$/, '');
-      // Add https:// if missing
       if (!url.startsWith('http')) {
         url = `https://${url}`;
       }
@@ -122,44 +121,36 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
       return;
     }
 
-    // Extract URL from the input (handles text with links in it)
     const extractedUrl = extractUrl(importUrl);
     if (!extractedUrl) {
-      alert('No valid URL found. Please enter a VRBO or Airbnb link (e.g., https://www.vrbo.com/... or https://www.airbnb.com/rooms/...)');
+      alert('No valid URL found. Please enter a VRBO or Airbnb link');
       return;
     }
 
-    // Update the input field with the extracted URL for user feedback
     if (extractedUrl !== importUrl.trim()) {
       setImportUrl(extractedUrl);
     }
 
     setIsImporting(true);
     try {
-      // Call onSave with the extracted URL - it will scrape it
       await onSave(extractedUrl, null);
-      // onSave will handle closing the modal and error handling
     } catch (error) {
-      // Only log error if it's a final failure (not a retry in progress)
       const errorMessage = error.message || error.toString() || '';
       if (!errorMessage.includes('retrying') && !errorMessage.includes('Attempt')) {
         console.error('Error importing rental:', error);
       }
-      // Always reset importing state so cancel button works
       setIsImporting(false);
-      // Re-throw so App.jsx can handle the error display
       throw error;
     } finally {
-      // Ensure importing state is reset even if onSave succeeds
       setIsImporting(false);
     }
   };
   
   const handleCancel = () => {
-    // Reset state when canceling
     setIsImporting(false);
     setImportUrl('');
     setMode(null);
+    setCurrentStep(0);
     if (onCancel) {
       onCancel();
     }
@@ -168,7 +159,6 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Prepare rental data
     const rentalData = {
       title: formData.title || 'Untitled Rental',
       url: formData.url || '',
@@ -184,7 +174,6 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
       bookingType: formData.bookingType
     };
 
-    // Save manually entered data
     try {
       await onSave(null, rentalData);
     } catch (error) {
@@ -192,7 +181,7 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
     }
   };
 
-  // Choice screen - show when mode is null
+  // Choice screen
   if (mode === null) {
     const choiceContent = (
       <div className="new-rental-page">
@@ -250,7 +239,7 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
     return choiceContent;
   }
 
-  // Import mode - show URL input
+  // Import mode
   if (mode === 'import') {
     const importContent = (
       <div className="new-rental-page">
@@ -276,7 +265,7 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
                 <div className="property-value">
                   <input
                     type="url"
-                    placeholder="Enter VRBO or Airbnb URL (e.g., https://www.vrbo.com/... or https://www.airbnb.com/rooms/...)"
+                    placeholder="Enter VRBO or Airbnb URL"
                     value={importUrl}
                     onChange={(e) => setImportUrl(e.target.value)}
                     className="property-input title-input"
@@ -335,10 +324,275 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
     return importContent;
   }
 
-  // Create mode - show the full form (existing behavior)
+  // Create mode - Wizard
   if (mode !== 'create') {
-    return null; // Should not reach here, but just in case
+    return null;
   }
+
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 0: // Basic Info
+        return (
+          <div className="wizard-step-content">
+            <h2 className="wizard-step-title">Basic Information</h2>
+            <p className="wizard-step-description">Start by entering the rental title and source</p>
+            
+            <div className="property-row">
+              <div className="property-item full-width">
+                <div className="property-label">
+                  <span className="property-icon">📝</span>
+                  Title *
+                </div>
+                <div className="property-value">
+                  <input
+                    type="text"
+                    placeholder="Enter rental title"
+                    value={formData.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    className="property-input title-input"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="property-row">
+              <div className="property-item">
+                <div className="property-label">
+                  <span className="property-icon">🏠</span>
+                  Source
+                </div>
+                <div className="property-value">
+                  <select
+                    value={formData.source}
+                    onChange={(e) => handleInputChange('source', e.target.value)}
+                    className="property-select"
+                  >
+                    <option value="VRBO">VRBO</option>
+                    <option value="Airbnb">Airbnb</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="property-item">
+                <div className="property-label">
+                  <span className="property-icon">🔗</span>
+                  Rental URL
+                </div>
+                <div className="property-value">
+                  <input
+                    type="url"
+                    placeholder="Optional"
+                    value={formData.url}
+                    onChange={(e) => handleInputChange('url', e.target.value)}
+                    className="property-input"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 1: // Details
+        return (
+          <div className="wizard-step-content">
+            <h2 className="wizard-step-title">Property Details</h2>
+            <p className="wizard-step-description">Tell us about the property's capacity and location</p>
+            
+            <div className="property-row">
+              <div className="property-item">
+                <div className="property-label">
+                  <span className="property-icon">🛏️</span>
+                  Bedrooms
+                </div>
+                <div className="property-value">
+                  <input
+                    type="number"
+                    placeholder="Enter number"
+                    value={formData.bedrooms}
+                    onChange={(e) => handleInputChange('bedrooms', e.target.value)}
+                    className="property-input"
+                  />
+                </div>
+              </div>
+
+              <div className="property-item">
+                <div className="property-label">
+                  <span className="property-icon">🚿</span>
+                  Bathrooms
+                </div>
+                <div className="property-value">
+                  <input
+                    type="number"
+                    placeholder="Enter number"
+                    value={formData.bathrooms}
+                    onChange={(e) => handleInputChange('bathrooms', e.target.value)}
+                    className="property-input"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="property-row">
+              <div className="property-item">
+                <div className="property-label">
+                  <span className="property-icon">👤</span>
+                  Sleeps
+                </div>
+                <div className="property-value">
+                  <input
+                    type="number"
+                    placeholder="Enter number"
+                    value={formData.sleeps}
+                    onChange={(e) => handleInputChange('sleeps', e.target.value)}
+                    className="property-input"
+                  />
+                </div>
+              </div>
+
+              <div className="property-item">
+                <div className="property-label">
+                  <span className="property-icon">📍</span>
+                  Location
+                </div>
+                <div className="property-value">
+                  <input
+                    type="text"
+                    placeholder="Enter location"
+                    value={formData.location}
+                    onChange={(e) => handleInputChange('location', e.target.value)}
+                    className="property-input"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 2: // Pricing & Images
+        return (
+          <div className="wizard-step-content">
+            <h2 className="wizard-step-title">Pricing & Images</h2>
+            <p className="wizard-step-description">Add pricing information and photos</p>
+            
+            <div className="property-row">
+              <div className="property-item full-width">
+                <div className="property-label">
+                  <span className="property-icon">💰</span>
+                  Price
+                </div>
+                <div className="property-value">
+                  <input
+                    type="number"
+                    placeholder="Enter price per night"
+                    value={formData.price}
+                    onChange={(e) => handleInputChange('price', e.target.value)}
+                    className="property-input"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="property-row">
+              <div className="property-item full-width">
+                <div className="property-label">
+                  <span className="property-icon">🖼️</span>
+                  Images
+                </div>
+                <div className="property-value">
+                  <div className="image-section">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      accept="image/*"
+                      multiple
+                      style={{ display: 'none' }}
+                    />
+                    <div className="image-upload-section">
+                      <button 
+                        type="button" 
+                        onClick={handleImageClick} 
+                        className="add-image-btn"
+                      >
+                        📷 Upload Images
+                      </button>
+                    </div>
+                    <div className="image-url-section">
+                      <div className="image-url-label">Or enter image URL:</div>
+                      <div className="image-input-group">
+                        <input
+                          type="url"
+                          placeholder="Enter image URL"
+                          value={imageUrl}
+                          onChange={(e) => setImageUrl(e.target.value)}
+                          className="property-input"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddImage();
+                            }
+                          }}
+                        />
+                        <button type="button" onClick={handleAddImage} className="add-image-btn">
+                          Add URL
+                        </button>
+                      </div>
+                    </div>
+                    {formData.images.length > 0 && (
+                      <div className="image-list">
+                        {formData.images.map((img, index) => (
+                          <div key={index} className="image-item">
+                            <img src={img} alt={`Image ${index + 1}`} />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(index)}
+                              className="remove-image-btn"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 3: // Description
+        return (
+          <div className="wizard-step-content">
+            <h2 className="wizard-step-title">Description</h2>
+            <p className="wizard-step-description">Add any additional details about the rental</p>
+            
+            <div className="property-row">
+              <div className="property-item full-width">
+                <div className="property-label">
+                  <span className="property-icon">📄</span>
+                  Description
+                </div>
+                <div className="property-value">
+                  <textarea
+                    placeholder="Enter description"
+                    value={formData.description}
+                    onChange={(e) => handleInputChange('description', e.target.value)}
+                    className="property-textarea"
+                    rows="8"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   const content = (
     <div className="new-rental-page">
@@ -354,288 +608,18 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
           <h1 className="page-title">Create from Scratch</h1>
         </div>
 
-        <div className="page-properties">
-        <div className="property-row">
-          <div className="property-item">
-            <div className="property-label">
-              <span className="property-icon">☀️</span>
-              Status
-            </div>
-            <div className="property-value">
-              <select
-                value={formData.status}
-                onChange={(e) => handleInputChange('status', e.target.value)}
-                className="property-select"
-              >
-                <option value="Idea">Idea</option>
-                <option value="Under Review">Under Review</option>
-                <option value="Approved">Approved</option>
-                <option value="Booked">Booked</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="property-item">
-            <div className="property-label">
-              <span className="property-icon">📷</span>
-              Cost
-            </div>
-            <div className="property-value">
-              <input
-                type="number"
-                placeholder="Enter price"
-                value={formData.price}
-                onChange={(e) => handleInputChange('price', e.target.value)}
-                className="property-input"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="property-row">
-          <div className="property-item">
-            <div className="property-label">
-              <span className="property-icon">🎯</span>
-              Booking Type
-            </div>
-            <div className="property-value">
-              <select
-                value={formData.bookingType}
-                onChange={(e) => handleInputChange('bookingType', e.target.value)}
-                className="property-select"
-              >
-                <option value="Lodging">Lodging</option>
-                <option value="Activity">Activity</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="property-item">
-            <div className="property-label">
-              <span className="property-icon">🔗</span>
-              Rental URL
-            </div>
-            <div className="property-value">
-              <input
-                type="url"
-                placeholder="Enter VRBO or Airbnb URL (optional)"
-                value={formData.url}
-                onChange={(e) => handleInputChange('url', e.target.value)}
-                className="property-input"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="property-row">
-          <div className="property-item full-width">
-            <div className="property-label">
-              <span className="property-icon">🏠</span>
-              Source
-            </div>
-            <div className="property-value">
-              <select
-                value={formData.source}
-                onChange={(e) => handleInputChange('source', e.target.value)}
-                className="property-select"
-              >
-                <option value="VRBO">VRBO</option>
-                <option value="Airbnb">Airbnb</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="property-row">
-          <div className="property-item">
-            <div className="property-label">
-              <span className="property-icon">🛏️</span>
-              Bedrooms
-            </div>
-            <div className="property-value">
-              <input
-                type="number"
-                placeholder="Enter number"
-                value={formData.bedrooms}
-                onChange={(e) => handleInputChange('bedrooms', e.target.value)}
-                className="property-input"
-              />
-            </div>
-          </div>
-
-          <div className="property-item">
-            <div className="property-label">
-              <span className="property-icon">🚿</span>
-              Bathrooms
-            </div>
-            <div className="property-value">
-              <input
-                type="number"
-                placeholder="Enter number"
-                value={formData.bathrooms}
-                onChange={(e) => handleInputChange('bathrooms', e.target.value)}
-                className="property-input"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="property-row">
-          <div className="property-item">
-            <div className="property-label">
-              <span className="property-icon">👤</span>
-              Sleeps
-            </div>
-            <div className="property-value">
-              <input
-                type="number"
-                placeholder="Enter number"
-                value={formData.sleeps}
-                onChange={(e) => handleInputChange('sleeps', e.target.value)}
-                className="property-input"
-              />
-            </div>
-          </div>
-
-          <div className="property-item">
-            <div className="property-label">
-              <span className="property-icon">📍</span>
-              Location
-            </div>
-            <div className="property-value">
-              <input
-                type="text"
-                placeholder="Enter location"
-                value={formData.location}
-                onChange={(e) => handleInputChange('location', e.target.value)}
-                className="property-input"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="property-row">
-          <div className="property-item full-width">
-            <div className="property-label">
-              <span className="property-icon">📝</span>
-              Title
-            </div>
-            <div className="property-value">
-              <input
-                type="text"
-                placeholder="Enter rental title"
-                value={formData.title}
-                onChange={(e) => handleInputChange('title', e.target.value)}
-                className="property-input title-input"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="property-row">
-          <div className="property-item full-width">
-            <div className="property-label">
-              <span className="property-icon">🖼️</span>
-              Images
-            </div>
-            <div className="property-value">
-              <div className="image-section">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  accept="image/*"
-                  multiple
-                  style={{ display: 'none' }}
-                />
-                <div className="image-upload-section">
-                  <button 
-                    type="button" 
-                    onClick={handleImageClick} 
-                    className="add-image-btn"
-                  >
-                    📷 Upload Images
-                  </button>
-                </div>
-                <div className="image-url-section">
-                  <div className="image-url-label">Or enter image URL:</div>
-                  <div className="image-input-group">
-                    <input
-                      type="url"
-                      placeholder="Enter image URL"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      className="property-input"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddImage();
-                        }
-                      }}
-                    />
-                    <button type="button" onClick={handleAddImage} className="add-image-btn">
-                      Add URL
-                    </button>
-                  </div>
-                </div>
-                {formData.images.length > 0 && (
-                  <div className="image-list">
-                    {formData.images.map((img, index) => (
-                      <div key={index} className="image-item">
-                        <img src={img} alt={`Image ${index + 1}`} />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(index)}
-                          className="remove-image-btn"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="property-row">
-          <div className="property-item full-width">
-            <div className="property-label">
-              <span className="property-icon">📄</span>
-              Description
-            </div>
-            <div className="property-value">
-              <textarea
-                placeholder="Enter description"
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                className="property-textarea"
-                rows="6"
-              />
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      <div className="page-footer">
-        <div className="footer-actions">
-          <button type="button" className="cancel-btn" onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="button" className="save-btn" onClick={handleSubmit}>
-            Save Rental
-          </button>
-        </div>
-      </div>
+        <Wizard
+          steps={wizardSteps}
+          currentStep={currentStep}
+          onStepChange={setCurrentStep}
+          onSubmit={handleSubmit}
+        >
+          {renderStepContent()}
+        </Wizard>
       </div>
     </div>
   );
 
-  // If modal, wrap in overlay
   if (isModal) {
     return (
       <div className="new-rental-page-modal" onClick={(e) => {
@@ -652,4 +636,3 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
 }
 
 export default NewRentalPage;
-

@@ -57,7 +57,7 @@ function ActivityCard({ activity, onActivityClick, onVote }) {
           />
         ) : (
           <div className="card-image-placeholder">
-            <span>No Image</span>
+            <span className="sr-only">No image available</span>
           </div>
         )}
         {images && images.length > 1 && (

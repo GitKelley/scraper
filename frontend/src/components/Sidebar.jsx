@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './Sidebar.css';
 
 function Sidebar() {
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState({
     years: 0,
     months: 0,
@@ -16,8 +17,8 @@ function Sidebar() {
   const [weatherLoading, setWeatherLoading] = useState(true);
 
   useEffect(() => {
-    // Target date: December 30, 2026
-    const targetDate = new Date('2026-12-30T00:00:00');
+    // Target date: December 30, 2025
+    const targetDate = new Date('2025-12-30T00:00:00');
     
     const updateCountdown = () => {
       const now = new Date();
@@ -110,23 +111,33 @@ function Sidebar() {
   }, []);
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-section">
-        <h3 className="sidebar-title">Trip Details</h3>
-        <div className="trip-dates">
-          <div className="trip-date">
-            <span className="date-label">Arrive:</span>
-            <span className="date-value">@December 30, 2026</span>
-          </div>
-          <div className="trip-date">
-            <span className="date-label">Depart:</span>
-            <span className="date-value">@January 3, 2026</span>
-          </div>
-        </div>
-      </div>
-      
-      <div className="sidebar-section">
-        <h3 className="sidebar-title">KELLEY 2026 NEW YEARS TRIP</h3>
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+      <button 
+        className="sidebar-toggle"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        <svg 
+          width="12" 
+          height="12" 
+          viewBox="0 0 12 12" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          style={{ transform: isCollapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+        >
+          <path 
+            d="M7.5 9L4.5 6L7.5 3" 
+            stroke="currentColor" 
+            strokeWidth="1.5" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+      {!isCollapsed && (
+        <>
+        <div className="sidebar-section">
+        <h3 className="sidebar-title">KELLEY 2025 NEW YEARS TRIP</h3>
         <div className="countdown">
           <div className="countdown-item">
             <div className="countdown-value">{String(timeRemaining.years).padStart(2, '0')}</div>
@@ -164,7 +175,10 @@ function Sidebar() {
       <div className="sidebar-section">
         <h3 className="sidebar-title">Weather - Asheville, NC</h3>
         {weatherLoading ? (
-          <div className="widget-loading">Loading weather...</div>
+          <div className="widget-loading">
+            <div className="weather-spinner"></div>
+            <span>Loading weather...</span>
+          </div>
         ) : weather ? (
           <div className="weather-widget">
             <div className="weather-main">
@@ -219,6 +233,8 @@ function Sidebar() {
           ></iframe>
         </div>
       </div>
+      </>
+      )}
     </aside>
   );
 }

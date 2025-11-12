@@ -9,12 +9,42 @@
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-md);
+  animation: cardFadeIn 0.4s ease-out backwards;
+}
+
+.lodging-card:nth-child(1) { animation-delay: 0.05s; }
+.lodging-card:nth-child(2) { animation-delay: 0.1s; }
+.lodging-card:nth-child(3) { animation-delay: 0.15s; }
+.lodging-card:nth-child(4) { animation-delay: 0.2s; }
+.lodging-card:nth-child(5) { animation-delay: 0.25s; }
+.lodging-card:nth-child(6) { animation-delay: 0.3s; }
+.lodging-card:nth-child(n+7) { animation-delay: 0.35s; }
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lodging-card:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 4px;
+  border-radius: 16px;
 }
 
 .lodging-card:hover {
   box-shadow: var(--shadow-xl), var(--shadow-glow);
   transform: translateY(-4px) scale(1.02);
   border-color: var(--border-color-hover);
+}
+
+.lodging-card:active {
+  transform: translateY(-2px) scale(1.01);
 }
 
 .card-image-container {
@@ -36,11 +66,20 @@
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: 14px;
+  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  gap: var(--spacing-2);
+}
+
+.card-image-placeholder::before {
+  content: '📷';
+  font-size: 48px;
+  opacity: 0.5;
+  filter: grayscale(0.5);
 }
 
 .lodging-card:hover .card-image {
@@ -183,6 +222,111 @@
 
 .upvote-count,
 .downvote-count {
+  font-weight: 600;
+}
+
+/* Vote Details Section (for voting results page) */
+.card-vote-details {
+  margin-top: var(--spacing-4);
+  padding-top: var(--spacing-4);
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.card-vote-visual {
+  width: 100%;
+}
+
+.card-vote-bar-container {
+  display: flex;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+
+.card-vote-bar {
+  height: 100%;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.card-vote-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.card-upvote-bar {
+  background: linear-gradient(90deg, var(--accent-green) 0%, #10b981 100%);
+}
+
+.card-downvote-bar {
+  background: linear-gradient(90deg, #dc3545 0%, #ef4444 100%);
+}
+
+.card-vote-stats {
+  display: flex;
+  gap: var(--spacing-4);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.card-vote-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+}
+
+.card-vote-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.card-upvote-stat {
+  color: var(--accent-green);
+}
+
+.card-downvote-stat {
+  color: #dc3545;
+}
+
+.card-net-vote-stat {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.card-net-vote-stat .card-vote-label {
+  color: var(--text-secondary);
+}
+
+.card-net-vote-stat .card-vote-count.positive {
+  color: var(--accent-green);
+}
+
+.card-net-vote-stat .card-vote-count.negative {
+  color: #dc3545;
+}
+
+.card-vote-count {
   font-weight: 600;
 }
 
