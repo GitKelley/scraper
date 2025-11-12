@@ -2,7 +2,9 @@ services:
   - type: web
     name: scraper
     env: node
-    buildCommand: npm install
+    buildCommand: |
+      npm install
+      cd frontend && npm install && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -11,3 +13,5 @@ services:
         value: "3000"
       - key: FIRECRAWL_API_KEY
         sync: false  # Set this in Render dashboard
+      - key: VITE_API_URL
+        value: https://scraper.onrender.com  # Update with your actual Render URL

@@ -1,10 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { scrapeRental } from './src/scraper.js';
 import { saveRental, getAllRentals, getRentalById, voteOnRental, getVotingResults, deleteRental, saveActivity, getAllActivities, getActivityById, voteOnActivity, getActivityVotingResults, deleteActivity, addComment, getComments, deleteComment, getSetting } from './src/storage.js';
 import { initializeDatabase } from './src/database.js';
 import { signUp, login } from './src/auth.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -398,8 +403,22 @@ app.get('/api/settings/header-image', async (req, res) => {
   }
 });
 
+// Serve static files from the React app in production (must be after all API routes)
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, 'frontend', 'dist');
+  app.use(express.static(frontendPath));
+  
+  // Serve React app for all non-API routes (catch-all must be last)
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
   console.log(`Rental scraper API running on port ${PORT}`);
   console.log(`Endpoint: POST http://localhost:${PORT}/api/scrape-rental`);
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Serving frontend from:', path.join(__dirname, 'frontend', 'dist'));
+  }
 });
 
