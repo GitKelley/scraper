@@ -58,10 +58,10 @@ function Sidebar() {
     const fetchWeather = async () => {
       try {
         // Using OpenWeatherMap API (free tier)
-        // Note: You'll need to add your API key to .env or use a public demo key
-        const API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY || '171c5a7fc63157f880ed2a4ee8dad94f';
+        // API key must be set as VITE_OPENWEATHER_API_KEY environment variable
+        const API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
         
-        if (!API_KEY || API_KEY === 'demo') {
+        if (!API_KEY) {
           console.warn('OpenWeatherMap API key not set. Using fallback weather data.');
           setWeather({
             name: 'Asheville',
