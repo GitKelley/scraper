@@ -185,8 +185,19 @@ function RentalDetailModal({ rental, onClose, onVote, onDelete, user }) {
     return date.toLocaleDateString();
   };
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header-actions">
           <button className="modal-delete" onClick={async () => {
@@ -206,10 +217,10 @@ function RentalDetailModal({ rental, onClose, onVote, onDelete, user }) {
                 alert('Failed to delete rental. Please try again.');
               }
             }
-          }} title="Delete rental">
+          }} title="Delete rental" aria-label="Delete rental">
             🗑️
           </button>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={onClose} aria-label="Close modal">×</button>
         </div>
         <div className="modal-content-inner">
           <div className="modal-header">

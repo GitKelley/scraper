@@ -3,9 +3,9 @@ import './NavigationTabs.css';
 
 function NavigationTabs({ activeTab, setActiveTab }) {
   const tabs = [
-    { id: 'lodging', label: 'Lodging Options', icon: '✓' },
-    { id: 'activities', label: 'Activity Planning', icon: null },
-    { id: 'votes', label: 'All Vote Results', icon: null }
+    { id: 'lodging', label: 'Lodging Options', shortLabel: 'Lodging', icon: '🏠' },
+    { id: 'activities', label: 'Activity Planning', shortLabel: 'Activities', icon: '🎯' },
+    { id: 'votes', label: 'All Vote Results', shortLabel: 'Votes', icon: '📊' }
   ];
 
   return (
@@ -15,11 +15,11 @@ function NavigationTabs({ activeTab, setActiveTab }) {
           key={tab.id}
           className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
           onClick={() => setActiveTab(tab.id)}
+          aria-label={tab.label}
         >
-          {activeTab === tab.id && tab.icon && (
-            <span className="tab-icon">{tab.icon}</span>
-          )}
-          {tab.label}
+          <span className="tab-icon">{tab.icon}</span>
+          <span className="tab-label">{tab.label}</span>
+          <span className="tab-label-short">{tab.shortLabel}</span>
         </button>
       ))}
     </div>

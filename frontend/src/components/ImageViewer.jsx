@@ -39,7 +39,7 @@ function ImageViewer({ images, initialIndex = 0, onClose }) {
   const currentImage = images[currentIndex];
 
   return (
-    <div className="image-viewer-overlay" onClick={onClose}>
+    <div className="image-viewer-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="image-viewer-content" onClick={(e) => e.stopPropagation()}>
         <button className="image-viewer-close" onClick={onClose}>×</button>
         

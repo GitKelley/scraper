@@ -11,8 +11,8 @@
   --bg-tertiary: #1a1a1a;
   --bg-sidebar: #0f0f0f;
   --text-primary: #ffffff;
-  --text-secondary: #a0a0a0;
-  --text-tertiary: #6b6b6b;
+  --text-secondary: #b8b8b8; /* Improved contrast: was #a0a0a0 */
+  --text-tertiary: #888888; /* Improved contrast: was #6b6b6b */
   --text-light: #ffffff;
   --border-color: rgba(255, 255, 255, 0.1);
   --border-color-hover: rgba(255, 255, 255, 0.2);
@@ -51,6 +51,51 @@
   --transition-fast: 0.15s ease;
   --transition-base: 0.3s ease;
   --transition-slow: 0.5s ease;
+  
+  /* Typography Scale (8px base) */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 20px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 32px;
+  
+  /* Spacing Scale (4px base unit) */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+}
+
+/* Screen reader only class */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Focus visible styles for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }
 
 /* Light mode */
@@ -60,8 +105,8 @@
   --bg-tertiary: #f1f3f5;
   --bg-sidebar: #f8f9fa;
   --text-primary: #1a1a1a;
-  --text-secondary: #6b7280;
-  --text-tertiary: #9ca3af;
+  --text-secondary: #4b5563; /* Improved contrast: was #6b7280 */
+  --text-tertiary: #6b7280; /* Improved contrast: was #9ca3af */
   --text-light: #ffffff;
   --border-color: rgba(0, 0, 0, 0.1);
   --border-color-hover: rgba(0, 0, 0, 0.2);
