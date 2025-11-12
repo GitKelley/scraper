@@ -75,6 +75,46 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
     }));
   };
 
+  // Extract URL from text (handles cases where user pastes text with a link in it)
+  const extractUrl = (text) => {
+    if (!text || !text.trim()) {
+      return null;
+    }
+    
+    // Regex to match http:// or https:// URLs
+    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
+    const matches = text.match(urlRegex);
+    
+    if (matches && matches.length > 0) {
+      // Return the first valid URL found
+      // Clean up any trailing punctuation that might have been captured
+      let url = matches[0];
+      // Remove trailing punctuation that's not part of the URL
+      url = url.replace(/[.,;:!?]+$/, '');
+      // Remove trailing closing parentheses/brackets if they're not part of the URL
+      url = url.replace(/[)\]}]$/, '');
+      return url.trim();
+    }
+    
+    // If no http/https URL found, check if it's a valid URL format without protocol
+    // This handles cases like "www.vrbo.com/123" or "vrbo.com/123"
+    const domainRegex = /(?:www\.)?(?:vrbo|airbnb)\.com\/[^\s<>"{}|\\^`\[\]]+/gi;
+    const domainMatches = text.match(domainRegex);
+    
+    if (domainMatches && domainMatches.length > 0) {
+      let url = domainMatches[0];
+      url = url.replace(/[.,;:!?]+$/, '');
+      url = url.replace(/[)\]}]$/, '');
+      // Add https:// if missing
+      if (!url.startsWith('http')) {
+        url = `https://${url}`;
+      }
+      return url.trim();
+    }
+    
+    return null;
+  };
+
   const handleImportSubmit = async (e) => {
     e.preventDefault();
     if (!importUrl.trim()) {
@@ -82,10 +122,22 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
       return;
     }
 
+    // Extract URL from the input (handles text with links in it)
+    const extractedUrl = extractUrl(importUrl);
+    if (!extractedUrl) {
+      alert('No valid URL found. Please enter a VRBO or Airbnb link (e.g., https://www.vrbo.com/... or https://www.airbnb.com/rooms/...)');
+      return;
+    }
+
+    // Update the input field with the extracted URL for user feedback
+    if (extractedUrl !== importUrl.trim()) {
+      setImportUrl(extractedUrl);
+    }
+
     setIsImporting(true);
     try {
-      // Call onSave with the URL - it will scrape it
-      await onSave(importUrl.trim(), null);
+      // Call onSave with the extracted URL - it will scrape it
+      await onSave(extractedUrl, null);
       // onSave will handle closing the modal and error handling
     } catch (error) {
       // Only log error if it's a final failure (not a retry in progress)
@@ -93,9 +145,23 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
       if (!errorMessage.includes('retrying') && !errorMessage.includes('Attempt')) {
         console.error('Error importing rental:', error);
       }
+      // Always reset importing state so cancel button works
       setIsImporting(false);
       // Re-throw so App.jsx can handle the error display
       throw error;
+    } finally {
+      // Ensure importing state is reset even if onSave succeeds
+      setIsImporting(false);
+    }
+  };
+  
+  const handleCancel = () => {
+    // Reset state when canceling
+    setIsImporting(false);
+    setImportUrl('');
+    setMode(null);
+    if (onCancel) {
+      onCancel();
     }
   };
 
@@ -236,12 +302,8 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
               <button
                 type="button"
                 className="cancel-btn"
-                onClick={() => {
-                  setMode(null);
-                  setImportUrl('');
-                  setIsImporting(false);
-                }}
-                disabled={isImporting}
+                onClick={handleCancel}
+                disabled={false}
               >
                 Cancel
               </button>
@@ -263,7 +325,7 @@ function NewRentalPage({ onSave, onCancel, isModal = true }) {
       return (
         <div className="new-rental-page-modal" onClick={(e) => {
           if (e.target === e.currentTarget && !isImporting) {
-            onCancel();
+            handleCancel();
           }
         }}>
           {importContent}

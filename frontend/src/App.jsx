@@ -98,7 +98,13 @@ function App() {
       const response = await fetch(`${API_BASE_URL}/api/voting-results`);
       if (response.ok) {
         const data = await response.json();
-        setVotingResults(data || []);
+        // Ensure results are sorted by net votes (most to least)
+        const sorted = (data || []).sort((a, b) => {
+          const netA = (a.netVotes || (a.upvotes || 0) - (a.downvotes || 0));
+          const netB = (b.netVotes || (b.upvotes || 0) - (b.downvotes || 0));
+          return netB - netA; // Descending order (most votes first)
+        });
+        setVotingResults(sorted);
       }
     } catch (error) {
       console.error('Error fetching voting results:', error);
@@ -119,6 +125,27 @@ function App() {
       });
       
       if (response.ok) {
+        const voteData = await response.json();
+        // Optimistically update voting results if on votes tab
+        if (activeTab === 'votes') {
+          setVotingResults(prev => {
+            return prev.map(item => {
+              if (item.id === rentalId) {
+                return {
+                  ...item,
+                  upvotes: voteData.votes?.upvotes ?? item.upvotes,
+                  downvotes: voteData.votes?.downvotes ?? item.downvotes,
+                  netVotes: (voteData.votes?.upvotes ?? item.upvotes) - (voteData.votes?.downvotes ?? item.downvotes)
+                };
+              }
+              return item;
+            }).sort((a, b) => {
+              const netA = a.netVotes || (a.upvotes || 0) - (a.downvotes || 0);
+              const netB = b.netVotes || (b.upvotes || 0) - (b.downvotes || 0);
+              return netB - netA;
+            });
+          });
+        }
         // Refresh data
         await fetchLodgingOptions();
         if (activeTab === 'votes') {
