@@ -6,6 +6,65 @@ import Firecrawl from '@mendable/firecrawl-js';
  * Requires FIRECRAWL_API_KEY environment variable
  */
 /**
+ * Clean URL by removing tracking and problematic parameters
+ * These parameters can trigger anti-bot detection
+ */
+function cleanUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    
+    // List of parameters to remove that can cause 403s
+    const paramsToRemove = [
+      // Branch.io tracking parameters
+      'brandcid',
+      '_branch_match_id',
+      '_branch_referrer',
+      '_branch_referrer_hook',
+      // Other tracking parameters
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_term',
+      'utm_content',
+      'fbclid',
+      'gclid',
+      'ref',
+      'source',
+      // VRBO-specific tracking
+      'rm1',
+      'rfrr',
+      'pwa_ts',
+      'referrerUrl',
+      'privacyTrackingState',
+      'searchId',
+      'selectedRoomType',
+      'selectedRatePlan',
+      'userIntent',
+      'top_dp',
+      'top_cur',
+      // Keep essential parameters for VRBO
+      // Keep: chkin, chkout, startDate, endDate, adults, children, guests, etc.
+    ];
+    
+    // Remove problematic parameters
+    paramsToRemove.forEach(param => {
+      urlObj.searchParams.delete(param);
+    });
+    
+    const cleanedUrl = urlObj.toString();
+    if (cleanedUrl !== url) {
+      console.log(`[URL Cleaning] Removed tracking parameters. Original: ${url.substring(0, 100)}...`);
+      console.log(`[URL Cleaning] Cleaned: ${cleanedUrl.substring(0, 100)}...`);
+    }
+    
+    return cleanedUrl;
+  } catch (error) {
+    console.warn(`[URL Cleaning] Failed to clean URL, using original: ${error.message}`);
+    return url;
+  }
+}
+
+/**
  * Normalize mobile app links to web URLs
  * Handles short links by following redirects
  */
@@ -164,8 +223,11 @@ export async function scrapeRental(url) {
     throw new Error('FIRECRAWL_API_KEY environment variable is required');
   }
 
+  // Clean URL first to remove tracking parameters that can trigger 403s
+  const cleanedUrl = cleanUrl(url);
+  
   // Normalize mobile app links to web URLs (follows redirects for short links)
-  const normalizedUrl = await normalizeUrl(url);
+  const normalizedUrl = await normalizeUrl(cleanedUrl);
 
   try {
     const result = await scrapeWithFirecrawl(normalizedUrl, firecrawlApiKey);
