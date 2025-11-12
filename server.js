@@ -147,10 +147,10 @@ app.get('/api/voting-results', async (req, res) => {
   }
 });
 
-// Main endpoint - called by Zapier webhook from Google Forms
+// Main endpoint - scrape rental from URL
 app.post('/api/scrape-rental', async (req, res) => {
   try {
-    // Zapier will send data from Google Forms
+    // Accept URL from request body
     // The URL field name might vary, so we'll check common field names
     const url = req.body.url || req.body.rentalUrl || req.body.link || req.body['Rental URL'] || req.body['Rental Link'];
     

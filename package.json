@@ -1,7 +1,7 @@
 {
   "name": "rental-scraper-app",
   "version": "1.0.0",
-  "description": "Web app to scrape rental listings from VRBO/Booking.com/Airbnb and send to Notion via Zapier",
+  "description": "Trip planning web app for managing rental listings and activities with voting, comments, and collaborative features",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -14,8 +14,8 @@
     "rental",
     "scraper",
     "firecrawl",
-    "zapier",
-    "notion"
+    "trip-planning",
+    "collaborative"
   ],
   "author": "",
   "license": "MIT",

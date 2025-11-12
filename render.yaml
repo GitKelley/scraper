@@ -1,3 +1,8 @@
+# Render Blueprint Configuration
+# This file is ONLY used if you deploy via Render Blueprint (Infrastructure as Code)
+# If you created the service manually through the dashboard, this file is ignored
+# and you should configure everything through the Render dashboard instead.
+
 services:
   - type: web
     name: scraper
@@ -9,6 +14,8 @@ services:
         value: production
       - key: PORT
         value: "3000"
+      - key: RENDER
+        value: "true"  # Helps app detect it's running on Render
       - key: FIRECRAWL_API_KEY
         sync: false  # Set this in Render dashboard
       - key: VITE_API_URL

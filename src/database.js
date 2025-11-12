@@ -1,12 +1,38 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Create database file in the project root
-const dbPath = path.join(__dirname, '..', 'data.db');
+// Database path configuration
+// On Render with persistent disk: use /opt/render/project/persistent
+// On Render free tier: data will be lost on redeploy (ephemeral filesystem)
+// Local development: use project root
+const isProduction = process.env.NODE_ENV === 'production';
+const persistentPath = process.env.RENDER_PERSISTENT_DISK_PATH || '/opt/render/project/persistent';
+
+// Check if we're on Render (Render sets RENDER=true or we can check for the persistent path)
+const isRender = process.env.RENDER === 'true' || process.env.RENDER === '1' || fs.existsSync('/opt/render');
+
+// Use persistent disk if on Render and the path exists, otherwise use project root
+let dbPath;
+if (isProduction && isRender && fs.existsSync(persistentPath)) {
+  dbPath = path.join(persistentPath, 'data.db');
+  console.log(`✅ Using persistent disk at: ${dbPath}`);
+} else if (isProduction && isRender) {
+  // On Render but persistent disk not mounted yet - warn but use project root
+  console.warn(`⚠️  Persistent disk not found at ${persistentPath}. Data will be lost on redeploy.`);
+  console.warn(`   Please add a persistent disk mounted at: ${persistentPath}`);
+  dbPath = path.join(__dirname, '..', 'data.db');
+} else {
+  // Local development
+  dbPath = path.join(__dirname, '..', 'data.db');
+}
+
+console.log(`Database location: ${dbPath}`);
+
 const db = new Database(dbPath);
 
 // Enable foreign keys
