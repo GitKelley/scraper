@@ -14,8 +14,14 @@ function RentalDetailModal({ rental, onClose, onVote, onDelete, user }) {
   const [loadingComments, setLoadingComments] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
+  const [showAllAmenities, setShowAllAmenities] = useState(false);
   const images = rental.images || [];
   const coverImage = images[0] || null;
+  
+  const amenities = rental.amenities || [];
+  const MAX_AMENITIES_PREVIEW = 10;
+  const displayedAmenities = showAllAmenities ? amenities : amenities.slice(0, MAX_AMENITIES_PREVIEW);
+  const hasMoreAmenities = amenities.length > MAX_AMENITIES_PREVIEW;
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -287,16 +293,27 @@ function RentalDetailModal({ rental, onClose, onVote, onDelete, user }) {
             </div>
           )}
 
-          {rental.amenities && Array.isArray(rental.amenities) && rental.amenities.length > 0 && (
+          {amenities.length > 0 && (
             <div className="modal-amenities">
-              <h2>Amenities</h2>
+              <h2>Amenities ({amenities.length})</h2>
               <div className="amenities-list">
-                {rental.amenities.map((amenity, index) => (
+                {displayedAmenities.map((amenity, index) => (
                   <span key={index} className="amenity-tag">
                     {amenity}
                   </span>
                 ))}
               </div>
+              {hasMoreAmenities && (
+                <button 
+                  className="amenities-expand-btn"
+                  onClick={() => setShowAllAmenities(!showAllAmenities)}
+                  aria-label={showAllAmenities ? 'Show fewer amenities' : 'Show all amenities'}
+                >
+                  {showAllAmenities 
+                    ? `Show Less (${MAX_AMENITIES_PREVIEW})` 
+                    : `Show All (${amenities.length - MAX_AMENITIES_PREVIEW} more)`}
+                </button>
+              )}
             </div>
           )}
 

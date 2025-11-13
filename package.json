@@ -27,7 +27,10 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.18.2",
-    "formidable": "^3.5.1"
+    "formidable": "^3.5.1",
+    "jsdom": "^27.2.0",
+    "playwright": "^1.48.0",
+    "scrapingbee": "^1.7.6"
   },
   "engines": {
     "node": ">=20.0.0"

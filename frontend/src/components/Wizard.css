@@ -13,8 +13,8 @@
   border-bottom: 1px solid var(--glass-border);
   background: var(--bg-secondary);
   gap: var(--spacing-2);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
+  flex-wrap: wrap;
 }
 
 .wizard-step {
@@ -179,10 +179,14 @@
   .wizard-progress {
     padding: var(--spacing-4) var(--spacing-2);
     gap: var(--spacing-1);
+    justify-content: space-between;
+    overflow: visible;
   }
 
   .wizard-step {
-    min-width: 60px;
+    min-width: 0;
+    flex: 1;
+    max-width: 25%;
   }
 
   .wizard-step-number {
@@ -193,11 +197,13 @@
 
   .wizard-step-label {
     font-size: 10px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
   }
 
   .wizard-step-line {
-    min-width: 20px;
-    max-width: 40px;
+    display: none; /* Hide connecting lines on mobile to save space */
   }
 
   .wizard-content {

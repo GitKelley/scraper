@@ -164,7 +164,65 @@ app.post('/api/scrape-rental', async (req, res) => {
     }
 
     // Scrape the rental data
-    const rentalData = await scrapeRental(url);
+    let rentalData;
+    try {
+      console.log(`[${new Date().toISOString()}] Starting scrape for URL: ${url}`);
+      rentalData = await scrapeRental(url);
+      console.log(`[${new Date().toISOString()}] Scrape completed successfully`);
+    } catch (error) {
+      console.error('Error scraping rental:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error message:', error?.message);
+      console.error('Error statusCode:', error?.statusCode);
+      console.error('Error stack:', error?.stack);
+      
+      // Safely extract error message
+      const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
+      const errorStatusCode = error?.statusCode || null;
+      const isRateLimited = error?.rateLimited || false;
+      const isBlocked = error?.blocked || false;
+      
+      // Check for 429 rate limit errors
+      if (errorStatusCode === 429 || isRateLimited || errorMessage.includes('429') || errorMessage.includes('rate limit') || errorMessage.includes('Rate limit')) {
+        console.log('Returning 429 rate limit error');
+        return res.status(429).json({
+          error: 'Rate limit exceeded',
+          message: errorMessage.includes('rate limit') ? errorMessage : 'VRBO is rate limiting requests. Please try again later or use manual entry.',
+          rateLimited: true
+        });
+      }
+      
+      // Check if it's a bot detection error
+      if (errorMessage.includes('Bot detection page encountered')) {
+        console.log('Returning 403 bot detection error');
+        return res.status(403).json({
+          error: 'Bot detection encountered',
+          message: 'The website is blocking automated access. This is a temporary issue with bot detection systems. Please try:\n1. Manually entering the rental details\n2. Trying again in a few minutes\n3. Using a different URL if available',
+          botDetection: true
+        });
+      }
+      
+      // Check for 403 errors or blocked errors
+      if (errorStatusCode === 403 || isBlocked || errorMessage.includes('403') || errorMessage.includes('Access denied') || errorMessage.includes('blocking') || errorMessage.includes('not currently supported')) {
+        console.log('Returning 403 access denied error');
+        console.log('Error message being sent:', errorMessage);
+        const responseData = {
+          error: 'Access denied',
+          message: errorMessage.includes('Access denied') || errorMessage.includes('blocking') ? errorMessage : 'The website is blocking automated access. Please try manually entering the rental details or try again later.',
+          blocked: true
+        };
+        console.log('Response data:', JSON.stringify(responseData));
+        return res.status(403).json(responseData);
+      }
+      
+      // Generic error - include more details for debugging
+      console.log('Returning 500 generic error');
+      return res.status(500).json({
+        error: 'Failed to scrape rental data',
+        message: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? (error?.stack || 'No stack trace available') : undefined
+      });
+    }
 
     if (!rentalData) {
       return res.status(500).json({
@@ -173,8 +231,19 @@ app.post('/api/scrape-rental', async (req, res) => {
       });
     }
 
-    // Log the scraped data for debugging
-    console.log('Scraped rental data:', JSON.stringify(rentalData, null, 2));
+    // Log the scraped data for debugging (only key fields to reduce noise)
+    console.log(`Scraped: ${rentalData.title || 'Untitled'} - ${rentalData.bedrooms || '?'}BR/${rentalData.bathrooms || '?'}BA, sleeps ${rentalData.sleeps || '?'}, ${rentalData.images?.length || 0} images`);
+    
+    // Check for bot detection pages in the scraped data
+    const botDetectionIndicators = ['Bot or Not', 'Show us your human side', 'We can\'t tell if you\'re a human or a bot'];
+    if (rentalData.title && botDetectionIndicators.some(indicator => rentalData.title.includes(indicator))) {
+      console.error('ERROR: Bot detection page detected in scraped data');
+      return res.status(403).json({
+        error: 'Bot detection encountered',
+        message: 'The website is blocking automated access. Please try manually entering the rental details or try again later.',
+        botDetection: true
+      });
+    }
     
     // Check if we got redirected to Airbnb homepage
     if (rentalData.title && (rentalData.title.includes('Airbnb: Vacation Rentals') || rentalData.title.includes('Airbnb homepage'))) {
@@ -205,8 +274,8 @@ app.post('/api/scrape-rental', async (req, res) => {
       tripType: rentalData.tripType || 'New Years Trip'
     };
 
-    // Log the prepared data for debugging
-    console.log('Prepared rental data for storage:', JSON.stringify(rentalToSave, null, 2));
+    // Log summary instead of full JSON to reduce noise
+    console.log(`Prepared for storage: ${rentalToSave.title} - Price: $${rentalToSave.price || 'N/A'}`);
 
     // Save to storage
     const savedRental = saveRental(rentalToSave);

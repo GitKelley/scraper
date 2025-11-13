@@ -64,11 +64,16 @@
 /* Mobile optimizations */
 @media (max-width: 768px) {
   .fab {
-    bottom: 20px;
+    bottom: 32px;
     right: 20px;
     width: 56px;
     height: 56px;
-    box-shadow: var(--shadow-xl), var(--shadow-glow);
+    /* Reduced shadow on mobile to prevent clipping */
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), 0 0 16px rgba(59, 130, 246, 0.25);
+  }
+  
+  .fab:hover {
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5), 0 0 20px rgba(59, 130, 246, 0.35);
   }
   
   .fab:active {
