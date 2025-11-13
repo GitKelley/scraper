@@ -42,8 +42,6 @@ function cleanUrl(url) {
       'userIntent',
       'top_dp',
       'top_cur',
-      // Keep essential parameters for VRBO
-      // Keep: chkin, chkout, startDate, endDate, adults, children, guests, etc.
     ];
     
     // Remove problematic parameters
@@ -77,8 +75,10 @@ async function normalizeUrl(url, visited = new Set()) {
   visited.add(url);
   
   // Handle VRBO short links (t.vrbo.io) and Branch.io links (a8ro.app.link) - need to follow redirect
-  if (url.includes('t.vrbo.io/') || url.includes('a8ro.app.link/')) {
-    console.log(`[URL Normalization] Resolving short link: ${url}`);
+  // Also check for vrbo in hostname (handles both t.vrbo.io and www.vrbo.com)
+  const urlHostname = new URL(url).hostname.toLowerCase();
+  if (url.includes('t.vrbo.io/') || url.includes('a8ro.app.link/') || urlHostname.includes('vrbo')) {
+    console.log(`[URL Normalization] VRBO URL detected! Resolving short link: ${url} (hostname: ${urlHostname})`);
     try {
       // First try without following redirects to catch the Location header
       try {
@@ -217,17 +217,54 @@ async function normalizeUrl(url, visited = new Set()) {
 }
 
 export async function scrapeRental(url) {
-  // Firecrawl API key is required
+  // Clean URL first to remove tracking parameters that can trigger 403s
+  const cleanedUrl = cleanUrl(url);
+  
+  // Check original URL for VRBO/Airbnb before normalization (in case normalization fails)
+  const originalHostname = new URL(cleanedUrl).hostname.toLowerCase();
+  const isVRBO = originalHostname.includes('vrbo') || cleanedUrl.includes('vrbo');
+  const isAirbnb = originalHostname.includes('airbnb') || cleanedUrl.includes('airbnb');
+  
+  // Normalize mobile app links to web URLs (follows redirects for short links)
+  let normalizedUrl;
+  try {
+    normalizedUrl = await normalizeUrl(cleanedUrl);
+  } catch (normalizeError) {
+    console.warn(`[scrapeRental] URL normalization failed: ${normalizeError.message}, using cleaned URL`);
+    normalizedUrl = cleanedUrl;
+  }
+  
+  console.log(`[scrapeRental] Original URL: ${url}`);
+  console.log(`[scrapeRental] Cleaned URL: ${cleanedUrl}`);
+  console.log(`[scrapeRental] Normalized URL: ${normalizedUrl}`);
+  console.log(`[scrapeRental] Original hostname: ${originalHostname}, isVRBO: ${isVRBO}, isAirbnb: ${isAirbnb}`);
+
+  // Bypass Firecrawl for Airbnb URLs and use direct API approach
+  const hostname = new URL(normalizedUrl).hostname.toLowerCase();
+  console.log(`[scrapeRental] Final hostname: ${hostname}`);
+  
+  // Check both original and normalized hostname for Airbnb
+  if (hostname.includes('airbnb') || isAirbnb) {
+    console.log('[Airbnb] Bypassing Firecrawl, using direct Airbnb API approach...');
+    try {
+      const { scrapeAirbnbViaAPI } = await import('./airbnb-api-scraper.js');
+      const apiResult = await scrapeAirbnbViaAPI(normalizedUrl);
+      if (apiResult && (apiResult.title || apiResult.description)) {
+        console.log('[Airbnb] Successfully scraped using Airbnb API');
+        return apiResult;
+      }
+      throw new Error('No data extracted from Airbnb API');
+    } catch (apiError) {
+      console.error('[Airbnb] Airbnb API scraping failed:', apiError.message);
+      throw apiError;
+    }
+  }
+
+  // Firecrawl API key is required for non-Airbnb URLs (VRBO and other sites use Firecrawl)
   const firecrawlApiKey = process.env.FIRECRAWL_API_KEY;
   if (!firecrawlApiKey) {
     throw new Error('FIRECRAWL_API_KEY environment variable is required');
   }
-
-  // Clean URL first to remove tracking parameters that can trigger 403s
-  const cleanedUrl = cleanUrl(url);
-  
-  // Normalize mobile app links to web URLs (follows redirects for short links)
-  const normalizedUrl = await normalizeUrl(cleanedUrl);
 
   try {
     const result = await scrapeWithFirecrawl(normalizedUrl, firecrawlApiKey);
@@ -237,6 +274,14 @@ export async function scrapeRental(url) {
     throw new Error('No data extracted from Firecrawl response');
   } catch (error) {
     console.error(`Firecrawl failed: ${error.message}`);
+    // Preserve status code and error details
+    if (error.statusCode) {
+      const enhancedError = new Error(error.message);
+      enhancedError.statusCode = error.statusCode;
+      enhancedError.rateLimited = error.rateLimited;
+      enhancedError.blocked = error.blocked;
+      throw enhancedError;
+    }
     throw error;
   }
 }
@@ -347,9 +392,9 @@ async function scrapeWithFirecrawl(url, apiKey) {
   
   // Helper function to perform the actual scrape
   const performScrape = async (useStealth = false, useProxy = false) => {
-    // Add human-like delay before making request (especially for Airbnb)
+    // Add human-like delay before making request (especially for Airbnb/VRBO)
     const hostname = new URL(url).hostname.toLowerCase();
-    if (hostname.includes('airbnb')) {
+    if (hostname.includes('airbnb') || hostname.includes('vrbo')) {
       await humanDelay();
     }
     
@@ -357,8 +402,8 @@ async function scrapeWithFirecrawl(url, apiKey) {
       formats: ['markdown', 'html'],
       // Page options for v1 API
       onlyMainContent: false, // Get full page - changed back to false, onlyMainContent might be causing redirects
-      waitFor: hostname.includes('airbnb') ? 10000 : 2000, // Wait even longer for Airbnb (10 seconds) - needs more time for JS to fully load
-      timeout: 30000, // 30 second timeout for Airbnb
+      waitFor: (hostname.includes('airbnb') || hostname.includes('vrbo')) ? 10000 : 2000, // Wait even longer for Airbnb/VRBO (10 seconds) - needs more time for JS to fully load
+      timeout: 30000, // 30 second timeout for Airbnb/VRBO
       // Complete browser headers to avoid detection
       headers: getStealthHeaders()
     };
@@ -379,14 +424,43 @@ async function scrapeWithFirecrawl(url, apiKey) {
       options.proxy = 'stealth';
     }
     
-    return await firecrawl.scrapeUrl(url, options);
+    try {
+      return await firecrawl.scrapeUrl(url, options);
+    } catch (firecrawlError) {
+      // Firecrawl SDK may throw errors with status codes
+      const errorMessage = firecrawlError.message || '';
+      const errorStatus = firecrawlError.statusCode || firecrawlError.status || null;
+      
+      // Check for 429 in error
+      if (errorStatus === 429 || errorMessage.includes('429') || errorMessage.includes('rate limit') || errorMessage.includes('Rate limit')) {
+        const rateLimitError = new Error(`Firecrawl rate limit: ${errorMessage}`);
+        rateLimitError.statusCode = 429;
+        rateLimitError.rateLimited = true;
+        throw rateLimitError;
+      }
+      
+      // Check for 403 in error
+      if (errorStatus === 403 || errorMessage.includes('403') || errorMessage.includes('not currently supported') || errorMessage.includes('Access denied')) {
+        const accessError = new Error(`Firecrawl access denied: ${errorMessage}`);
+        accessError.statusCode = 403;
+        accessError.blocked = true;
+        throw accessError;
+      }
+      
+      // Re-throw with enhanced message
+      const enhancedError = new Error(`Firecrawl API error: ${errorMessage}`);
+      enhancedError.statusCode = errorStatus;
+      enhancedError.originalError = firecrawlError;
+      throw enhancedError;
+    }
   };
   
-  // Check if this is an Airbnb link - use stealth and proxy rotation from the start
+  // Check if this is an Airbnb or VRBO link - use stealth and proxy rotation from the start
   const hostname = new URL(url).hostname.toLowerCase();
   const isAirbnb = hostname.includes('airbnb');
-  const useStealthFirst = isAirbnb; // Use stealth mode from start for Airbnb
-  const useProxyRotation = process.env.ENABLE_PROXY_ROTATION === 'true' || isAirbnb; // Enable proxy rotation for Airbnb or if explicitly enabled
+  const isVRBO = hostname.includes('vrbo');
+  const useStealthFirst = isAirbnb || isVRBO; // Use stealth mode from start for Airbnb and VRBO
+  const useProxyRotation = process.env.ENABLE_PROXY_ROTATION === 'true' || isAirbnb || isVRBO; // Enable proxy rotation for Airbnb/VRBO or if explicitly enabled
   
   // Retry logic with exponential backoff
   const maxRetries = 3;
@@ -400,8 +474,9 @@ async function scrapeWithFirecrawl(url, apiKey) {
       }
       
       if (useStealthFirst) {
-        console.log(`[${new Date().toISOString()}] Calling Firecrawl API for: ${url} (stealth proxy + IP rotation - Airbnb detected) [Attempt ${attempt + 1}/${maxRetries + 1}]`);
-        // Start with stealth and proxy rotation for Airbnb
+        const siteType = isAirbnb ? 'Airbnb' : isVRBO ? 'VRBO' : 'site';
+        console.log(`[${new Date().toISOString()}] Calling Firecrawl API for: ${url} (stealth proxy + IP rotation - ${siteType} detected) [Attempt ${attempt + 1}/${maxRetries + 1}]`);
+        // Start with stealth and proxy rotation for Airbnb/VRBO
         let scrapeResponse = await performScrape(true, useProxyRotation);
         console.log(`[${new Date().toISOString()}] Firecrawl response received (stealth proxy + IP rotation)`);
         let data = scrapeResponse;
@@ -446,10 +521,35 @@ async function scrapeWithFirecrawl(url, apiKey) {
       const statusMatch = errorMessage.match(/status code:?\s*(\d+)/i);
       const statusCode = statusMatch ? parseInt(statusMatch[1], 10) : null;
       
+      // Check for 429 rate limit errors - don't retry these, return immediately
+      if (statusCode === 429 || errorMessage.includes('429') || errorMessage.includes('rate limit') || errorMessage.includes('Rate limit')) {
+        console.error(`[${new Date().toISOString()}] Rate limit (429) detected: ${error.message}`);
+        const rateLimitError = new Error('Rate limit exceeded. VRBO is blocking requests. Please try again later or use manual entry.');
+        rateLimitError.statusCode = 429;
+        rateLimitError.rateLimited = true;
+        throw rateLimitError;
+      }
+      
+      // Check for 403 errors - don't retry these excessively
+      if (statusCode === 403 || errorMessage.includes('403') || errorMessage.includes('not currently supported') || errorMessage.includes('Access denied')) {
+        console.error(`[${new Date().toISOString()}] Access denied (403) detected: ${error.message}`);
+        const accessError = new Error('Access denied. VRBO is blocking automated access. Please use manual entry.');
+        accessError.statusCode = 403;
+        accessError.blocked = true;
+        throw accessError;
+      }
+      
       // If we've exhausted retries, log as error and throw
       if (attempt === maxRetries) {
         console.error(`[${new Date().toISOString()}] All ${maxRetries + 1} attempts failed: ${error.message}`);
-        throw error;
+        console.error(`[${new Date().toISOString()}] Error stack:`, error.stack);
+        // Enhance error message for better debugging
+        const enhancedError = new Error(`Failed to scrape VRBO after ${maxRetries + 1} attempts: ${error.message || 'Unknown error'}`);
+        enhancedError.originalError = error;
+        enhancedError.statusCode = error.statusCode;
+        enhancedError.rateLimited = error.rateLimited;
+        enhancedError.blocked = error.blocked;
+        throw enhancedError;
       }
       
       // During retries, log as warning (not error) since we're still trying
@@ -491,6 +591,30 @@ function processFirecrawlData(data, url, hostname) {
     // Log markdown for debugging (first 1000 chars)
     if (pageData.markdown) {
       console.log(`[${new Date().toISOString()}] Markdown preview (first 1000 chars):`, pageData.markdown.substring(0, 1000));
+      
+      // Check for bot detection pages
+      const botDetectionIndicators = [
+        'Bot or Not',
+        'Show us your human side',
+        'We can\'t tell if you\'re a human or a bot',
+        'Please verify you are human',
+        'Access Denied',
+        'Cloudflare',
+        'challenge',
+        'captcha',
+        'verify you are human'
+      ];
+      
+      const markdownLower = pageData.markdown.toLowerCase();
+      const titleLower = (pageData.metadata?.title || '').toLowerCase();
+      
+      for (const indicator of botDetectionIndicators) {
+        if (markdownLower.includes(indicator.toLowerCase()) || titleLower.includes(indicator.toLowerCase())) {
+          console.error(`[${new Date().toISOString()}] ERROR: Bot detection page detected: "${indicator}"`);
+          throw new Error(`Bot detection page encountered. The website is blocking automated access. Status code: 403`);
+        }
+      }
+      
       // Check if we got redirected to homepage
       if (pageData.markdown.includes('[Airbnb homepage]') || pageData.markdown.includes('Airbnb: Vacation Rentals')) {
         console.warn(`[${new Date().toISOString()}] WARNING: Appears to have been redirected to Airbnb homepage instead of listing page`);
@@ -1022,8 +1146,8 @@ function getParser(hostname) {
       return parser;
     }
   }
-  // Default to VRBO parser for unknown sites
-  return VRBOParser;
+  // Default to base parser for unknown sites
+  return BaseParser;
 }
 
 /**
@@ -1031,8 +1155,8 @@ function getParser(hostname) {
  */
 function getSourceName(hostname) {
   if (hostname.includes('vrbo')) return 'VRBO';
-  if (hostname.includes('booking')) return 'Booking.com';
   if (hostname.includes('airbnb')) return 'Airbnb';
+  if (hostname.includes('booking')) return 'Booking.com';
   if (hostname.includes('expedia')) return 'Expedia';
   if (hostname.includes('tripadvisor')) return 'TripAdvisor';
   if (hostname.includes('homeaway')) return 'HomeAway';

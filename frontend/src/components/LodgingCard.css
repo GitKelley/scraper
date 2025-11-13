@@ -159,11 +159,12 @@
 
 .card-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   margin-top: auto;
   padding-top: 12px;
   border-top: 1px solid var(--border-color);
+  gap: 12px;
 }
 
 .card-price {
@@ -176,6 +177,31 @@
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+@media (max-width: 768px) {
+  .vote-buttons {
+    gap: 2px;
+    justify-content: flex-end;
+  }
+
+  .upvote-button,
+  .downvote-button {
+    padding: 6px 8px;
+    min-width: auto;
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  .upvote-icon,
+  .downvote-icon {
+    font-size: 14px;
+  }
+
+  .upvote-count,
+  .downvote-count {
+    font-size: 11px;
+  }
 }
 
 .upvote-button,
@@ -192,6 +218,13 @@
   font-weight: 600;
   color: white;
   box-shadow: var(--shadow-md);
+}
+
+@media (max-width: 768px) {
+  .upvote-button,
+  .downvote-button {
+    gap: 3px; /* Smaller gap between icon and count on mobile */
+  }
 }
 
 .upvote-button {

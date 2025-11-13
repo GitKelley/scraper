@@ -1,7 +1,7 @@
 import React from 'react';
 import './Wizard.css';
 
-function Wizard({ steps, currentStep, onStepChange, onSubmit, children }) {
+function Wizard({ steps, currentStep, onStepChange, onSubmit, onCancel, children }) {
   const canGoNext = currentStep < steps.length - 1;
   const canGoPrev = currentStep > 0;
 
@@ -21,6 +21,12 @@ function Wizard({ steps, currentStep, onStepChange, onSubmit, children }) {
     e.preventDefault();
     if (onSubmit) {
       onSubmit(e);
+    }
+  };
+
+  const handleCancel = () => {
+    if (onCancel) {
+      onCancel();
     }
   };
 
@@ -50,14 +56,24 @@ function Wizard({ steps, currentStep, onStepChange, onSubmit, children }) {
 
       {/* Navigation buttons */}
       <div className="wizard-navigation">
-        <button
-          type="button"
-          className="wizard-button wizard-button-secondary"
-          onClick={handlePrev}
-          disabled={!canGoPrev}
-        >
-          ← Previous
-        </button>
+        {currentStep === 0 ? (
+          <button
+            type="button"
+            className="wizard-button wizard-button-secondary"
+            onClick={handleCancel}
+          >
+            Cancel
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="wizard-button wizard-button-secondary"
+            onClick={handlePrev}
+            disabled={!canGoPrev}
+          >
+            ← Previous
+          </button>
+        )}
         <div className="wizard-step-indicator">
           Step {currentStep + 1} of {steps.length}
         </div>

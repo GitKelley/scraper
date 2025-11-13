@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Wizard from './Wizard';
 import './NewActivityPage.css';
 
@@ -24,6 +24,20 @@ function NewActivityPage({ onSave, onCancel, isModal = true }) {
   });
   const [imageUrl, setImageUrl] = useState('');
   const fileInputRef = useRef(null);
+
+  // Prevent body scroll when modal is open on mobile
+  useEffect(() => {
+    if (isModal) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      return () => {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+      };
+    }
+  }, [isModal]);
 
   const wizardSteps = [
     { label: 'Basic Info' },
@@ -508,6 +522,7 @@ function NewActivityPage({ onSave, onCancel, isModal = true }) {
           currentStep={currentStep}
           onStepChange={setCurrentStep}
           onSubmit={handleSubmit}
+          onCancel={onCancel}
         >
           {renderStepContent()}
         </Wizard>

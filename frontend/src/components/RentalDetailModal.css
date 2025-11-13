@@ -366,6 +366,29 @@
   color: var(--text-primary);
 }
 
+.amenities-expand-btn {
+  margin-top: 16px;
+  padding: 10px 20px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.amenities-expand-btn:hover {
+  background: var(--hover-bg);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
 .modal-image-gallery {
   margin-bottom: 32px;
 }

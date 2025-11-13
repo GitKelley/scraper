@@ -392,12 +392,22 @@
     font-size: 12px;
   }
 
+  .header-actions {
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+
   .dropdown-menu {
     min-width: 200px;
     right: -8px;
+    /* If header is near bottom, dropdown should appear above */
+    bottom: calc(100% + 8px);
+    top: auto;
   }
 
   .user-dropdown {
     right: -8px;
+    bottom: calc(100% + 8px);
+    top: auto;
   }
 }
