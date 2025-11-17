@@ -135,48 +135,30 @@ function App() {
         const newDownvotes = voteData.votes?.downvotes ?? 0;
         const newNetVotes = newUpvotes - newDownvotes;
         
-        // Optimistically update voting results if on votes tab
-        if (activeTab === 'votes') {
-          setVotingResults(prev => {
-            return prev.map(item => {
-              if (item.id === rentalId) {
-                return {
-                  ...item,
-                  upvotes: newUpvotes,
-                  downvotes: newDownvotes,
-                  netVotes: newNetVotes
-                };
-              }
-              return item;
-            }).sort((a, b) => {
-              const netA = a.netVotes || (a.upvotes || 0) - (a.downvotes || 0);
-              const netB = b.netVotes || (b.upvotes || 0) - (b.downvotes || 0);
-              return netB - netA;
-            });
-          });
-        }
-        
-        // Update lodging options list without full refresh
-        setLodgingOptions(prev => {
-          return prev.map(item => {
-            if (item.id === rentalId) {
-              return {
-                ...item,
+        // Refresh lodging options to get updated vote counts for all rentals
+        // This ensures votes removed from other houses are reflected immediately
+        const refreshResponse = await fetch(`${API_BASE_URL}/api/lodging-options`);
+        if (refreshResponse.ok) {
+          const refreshedRentals = await refreshResponse.json();
+          setLodgingOptions(refreshedRentals);
+          
+          // Update selected rental if it's the one being voted on
+          if (selectedRental && selectedRental.id === rentalId) {
+            const updatedRental = refreshedRentals.find(r => r.id === rentalId);
+            if (updatedRental) {
+              setSelectedRental({
+                ...updatedRental,
                 upvotes: newUpvotes,
                 downvotes: newDownvotes
-              };
+              });
             }
-            return item;
-          });
-        });
+          }
+        }
         
-        // Update selected rental if it's the one being voted on
-        if (selectedRental && selectedRental.id === rentalId) {
-          setSelectedRental(prev => ({
-            ...prev,
-            upvotes: newUpvotes,
-            downvotes: newDownvotes
-          }));
+        // Optimistically update voting results if on votes tab
+        if (activeTab === 'votes') {
+          // Refresh voting results to get updated counts
+          await fetchVotingResults();
         }
         // Don't show toast for votes - UI updates optimistically
         return true;
@@ -479,6 +461,7 @@ function App() {
               loading={loading}
               onRentalClick={(rental) => setSelectedRental(rental)}
               onVote={handleVote}
+              onRefresh={fetchVotingResults}
             />
           )}
         </div>

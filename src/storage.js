@@ -177,7 +177,7 @@ export function deleteRental(rentalId) {
 }
 
 export function voteOnRental(rentalId, voteType, userId) {
-  // Check if user has already voted
+  // Check if user has already voted for this specific rental
   const existingVote = db.prepare(
     'SELECT voteType FROM votes WHERE itemId = ? AND itemType = ? AND userId = ?'
   ).get(rentalId, 'rental', userId);
@@ -190,7 +190,13 @@ export function voteOnRental(rentalId, voteType, userId) {
     return { ...getVoteCounts(rentalId, 'rental'), removed: true };
   }
   
-  // If user previously voted differently, update the vote
+  // NEW: Remove any existing votes for this user on other rentals
+  // This ensures users can only vote for one house at a time
+  db.prepare(
+    'DELETE FROM votes WHERE itemId != ? AND itemType = ? AND userId = ?'
+  ).run(rentalId, 'rental', userId);
+  
+  // If user previously voted differently on this rental, update the vote
   if (existingVote) {
     db.prepare(
       'UPDATE votes SET voteType = ?, createdAt = ? WHERE itemId = ? AND itemType = ? AND userId = ?'
@@ -433,6 +439,12 @@ export function getActivityVotingResults() {
       netVotes: activity.upvotes - activity.downvotes
     }))
     .sort((a, b) => b.netVotes - a.netVotes);
+}
+
+// Clear all votes for rentals (tie breaker functionality)
+export function clearAllRentalVotes() {
+  const result = db.prepare('DELETE FROM votes WHERE itemType = ?').run('rental');
+  return { deleted: result.changes };
 }
 
 // Get detailed vote information showing who voted for which houses

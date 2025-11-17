@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { scrapeRental } from './src/scraper.js';
-import { saveRental, getAllRentals, getRentalById, voteOnRental, getVotingResults, deleteRental, saveActivity, getAllActivities, getActivityById, voteOnActivity, getActivityVotingResults, deleteActivity, addComment, getComments, deleteComment, getSetting, getVoteDetails } from './src/storage.js';
+import { saveRental, getAllRentals, getRentalById, voteOnRental, getVotingResults, deleteRental, saveActivity, getAllActivities, getActivityById, voteOnActivity, getActivityVotingResults, deleteActivity, addComment, getComments, deleteComment, getSetting, getVoteDetails, clearAllRentalVotes } from './src/storage.js';
 import { initializeDatabase } from './src/database.js';
 import { signUp, login } from './src/auth.js';
 
@@ -152,6 +152,17 @@ app.get('/api/vote-details', async (req, res) => {
   } catch (error) {
     console.error('Error fetching vote details:', error);
     res.status(500).json({ error: 'Failed to fetch vote details' });
+  }
+});
+
+// Clear all rental votes (tie breaker)
+app.delete('/api/votes/clear-all', async (req, res) => {
+  try {
+    const result = clearAllRentalVotes();
+    res.json({ success: true, deleted: result.deleted });
+  } catch (error) {
+    console.error('Error clearing votes:', error);
+    res.status(500).json({ error: 'Failed to clear votes' });
   }
 });
 
