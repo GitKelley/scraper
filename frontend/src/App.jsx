@@ -65,6 +65,7 @@ function App() {
     } else if (activeTab === 'votes') {
       fetchVotingResults();
     }
+    // vote-details tab fetches its own data
   }, [activeTab]);
 
   const fetchLodgingOptions = async () => {

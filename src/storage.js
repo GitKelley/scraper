@@ -434,3 +434,63 @@ export function getActivityVotingResults() {
     }))
     .sort((a, b) => b.netVotes - a.netVotes);
 }
+
+// Get detailed vote information showing who voted for which houses
+export function getVoteDetails() {
+  // Get all votes for rentals with user information
+  const voteDetails = db.prepare(`
+    SELECT 
+      v.id as voteId,
+      v.itemId as rentalId,
+      v.userId,
+      v.voteType,
+      v.createdAt as voteDate,
+      u.username,
+      u.name as userName,
+      r.title as rentalTitle,
+      r.location as rentalLocation,
+      r.price as rentalPrice
+    FROM votes v
+    JOIN users u ON v.userId = u.id
+    JOIN rentals r ON v.itemId = r.id
+    WHERE v.itemType = 'rental'
+    ORDER BY v.createdAt DESC
+  `).all();
+
+  // Group votes by rental
+  const votesByRental = {};
+  voteDetails.forEach(vote => {
+    if (!votesByRental[vote.rentalId]) {
+      votesByRental[vote.rentalId] = {
+        rentalId: vote.rentalId,
+        rentalTitle: vote.rentalTitle,
+        rentalLocation: vote.rentalLocation,
+        rentalPrice: vote.rentalPrice,
+        upvotes: [],
+        downvotes: []
+      };
+    }
+    
+    const voterInfo = {
+      userId: vote.userId,
+      username: vote.username,
+      name: vote.userName,
+      voteDate: vote.voteDate
+    };
+    
+    if (vote.voteType === 'upvote') {
+      votesByRental[vote.rentalId].upvotes.push(voterInfo);
+    } else {
+      votesByRental[vote.rentalId].downvotes.push(voterInfo);
+    }
+  });
+
+  // Convert to array and sort by total votes
+  return Object.values(votesByRental)
+    .map(rental => ({
+      ...rental,
+      totalVotes: rental.upvotes.length + rental.downvotes.length,
+      netVotes: rental.upvotes.length - rental.downvotes.length
+    }))
+    .sort((a, b) => b.totalVotes - a.totalVotes);
+}

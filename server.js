@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { scrapeRental } from './src/scraper.js';
-import { saveRental, getAllRentals, getRentalById, voteOnRental, getVotingResults, deleteRental, saveActivity, getAllActivities, getActivityById, voteOnActivity, getActivityVotingResults, deleteActivity, addComment, getComments, deleteComment, getSetting } from './src/storage.js';
+import { saveRental, getAllRentals, getRentalById, voteOnRental, getVotingResults, deleteRental, saveActivity, getAllActivities, getActivityById, voteOnActivity, getActivityVotingResults, deleteActivity, addComment, getComments, deleteComment, getSetting, getVoteDetails } from './src/storage.js';
 import { initializeDatabase } from './src/database.js';
 import { signUp, login } from './src/auth.js';
 
@@ -141,6 +141,17 @@ app.get('/api/voting-results', async (req, res) => {
   } catch (error) {
     console.error('Error fetching voting results:', error);
     res.status(500).json({ error: 'Failed to fetch voting results' });
+  }
+});
+
+// Get detailed vote information (who voted for which houses)
+app.get('/api/vote-details', async (req, res) => {
+  try {
+    const details = getVoteDetails();
+    res.json(details);
+  } catch (error) {
+    console.error('Error fetching vote details:', error);
+    res.status(500).json({ error: 'Failed to fetch vote details' });
   }
 });
 
